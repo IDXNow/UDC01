@@ -156,7 +156,7 @@ UDC01 is particularly effective for regular data processing tasks where manual s
 
 ## License
 
-This project is licensed under the [MIT License](https://github.com/IDXNow/UDC01/LICENSE) - see the LICENSE file for details.
+This project is licensed under the [MIT License](https://github.com/IDXNow/UDC01/blob/main/LICENSE) - see the LICENSE file for details.
 
 ---
 
