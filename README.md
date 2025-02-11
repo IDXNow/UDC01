@@ -64,7 +64,7 @@ The core transformation pipeline consists of several key stages:
    - Comprehensive validation reporting
 
 <p align="center">
-  <img width="80%" src="https://github.com/IDXNow/UDC01/img/udc01.data_flow.jpg">
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.data_flow.jpg">
 </p>
 
 ---
@@ -88,7 +88,7 @@ The job management system orchestrates the overall execution:
    - Automated cleanup procedures
 
 <p align="center">
-  <img width="80%" src="https://github.com/IDXNow/UDC01/img/udc01.job_flow.jpg">
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.job_flow.jpg">
 </p>
 
 ---
@@ -108,7 +108,7 @@ The **messaging system** ensures that stakeholders receive **relevant updates** 
    - Success confirmations
 
 <p align="center">
-  <img width="80%" src="https://github.com/IDXNow/UDC01/img/udc01.messaging_flow.jpg">
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.messaging_flow.jpg">
 </p>
 
 ---
