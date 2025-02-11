@@ -1,8 +1,8 @@
 # Universal Data Converter (UDC01)
 <!-- markdownlint-disable first-line-h1 -->
 <!-- markdownlint-disable html -->
-<div align="center">
-  <h3>Leveraging LLMs for Intelligent Data Transformation</h3>
+<div>
+  <h2>Leveraging LLMs for Intelligent Data Transformation</h2>
 </div>
 
 ## Table of Contents
