@@ -14,6 +14,7 @@
   - [Messaging Process Flow](#messaging-process-flow)
 - [Technical Specifications](#technical-specifications)
 - [Use Cases](#use-cases)
+- [Evolution of Data Integration](#evolution-of-data-integration)
 - [License](#license)
 - [Contact & Community](#contact--community)
 ## Introduction
@@ -154,6 +155,8 @@ The framework excels in scenarios where organizations receive varied data format
 ### Automated Data Transformation
 UDC01 is particularly effective for regular data processing tasks where manual standardization would be time-consuming and error-prone. The framework's ability to understand and adapt to various input formats makes it ideal for automated data pipeline implementations.
 
+---
+
 ## Evolution of Data Integration
 The Universal Data Converter (UDC01) introduces an approach to data transformation that bridges established data engineering practices with the emerging capabilities of large language models. This intersection creates a new discipline we call **Data Prompt Engineering**.
 
@@ -179,7 +182,10 @@ The 2/3 majority validation mechanism in UDC01 is a cornerstone of reliable Data
 
 The framework's validation design reconciles two competing realities: LLMs' inherent variability and enterprise systems' need for consistent, predictable outputs.
 
+---
+
 ## License
+Copyright (c) 2025 Steve Wint / I D X
 
 This project is licensed under the [MIT License](https://github.com/IDXNow/UDC01/blob/main/LICENSE) - see the LICENSE file for details.
 
