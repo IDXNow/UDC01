@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<InventoryData xmlns="http://www.example.com/inventory" CreatedDate="2025-01-30T09:15:00" ExportSystem="ERP-9000">
+  <WarehouseInfo>
+    <WarehouseID>WH-CENTRAL</WarehouseID>
+    <WarehouseName>Central Distribution Center</WarehouseName>
+    <Location>
+      <Address>1200 Logistics Avenue</Address>
+      <City>Columbus</City>
+      <State>OH</State>
+      <ZipCode>43215</ZipCode>
+      <Country>USA</Country>
+      <GeoCoordinates latitude="39.9612" longitude="-82.9988"/>
+    </Location>
+    <ContactInfo>
+      <ManagerName>Robert Williams</ManagerName>
+      <PhoneNumber>614-555-7890</PhoneNumber>
+      <Email>rwilliams@example.com</Email>
+    </ContactInfo>
+  </WarehouseInfo>
+  <ProductList>
+    <Product SKU="ELEC-5512" DepartmentCode="ELECTRONICS">
+      <ProductName>Ultra HD Smart Television</ProductName>
+      <Brand>TechVision</Brand>
+      <ModelNumber>TV-UH75</ModelNumber>
+      <Description>75-inch Ultra HD Smart TV with voice control and streaming capabilities</Description>
+      <ProductType>Television</ProductType>
+      <ProductStatus>Active</ProductStatus>
+      <Dimensions>
+        <Width unit="inches">65.7</Width>
+        <Height unit="inches">37.8</Height>
+        <Depth unit="inches">2.4</Depth>
+      </Dimensions>
+      <Weight unit="lbs">82.5</Weight>
+      <InventoryDetails>
+        <QuantityOnHand>45</QuantityOnHand>
+        <ReorderLevel>10</ReorderLevel>
+        <ReorderQuantity>20</ReorderQuantity>
+        <LastRestockDate>2025-01-15</LastRestockDate>
+        <LastStockCount>2025-01-25</LastStockCount>
+        <ShelfLocation>E-15-C</ShelfLocation>
+        <AvailableForSale>true</AvailableForSale>
+      </InventoryDetails>
+      <PricingInfo>
+        <WholesalePrice currency="USD">899.50</WholesalePrice>
+        <RetailPrice currency="USD">1499.99</RetailPrice>
+        <MSRP currency="USD">1599.99</MSRP>
+        <Discount type="None" amount="0"/>
+      </PricingInfo>
+      <SupplierInfo>
+        <SupplierID>SUP-2234</SupplierID>
+        <SupplierName>ElectroTech Distributors</SupplierName>
+        <LeadTimeDays>10</LeadTimeDays>
+      </SupplierInfo>
+    </Product>
+    <Product SKU="FURN-8871" DepartmentCode="FURNITURE">
+      <ProductName>Ergonomic Office Chair</ProductName>
+      <Brand>ComfortWorks</Brand>
+      <ModelNumber>CW-ERG200</ModelNumber>
+      <Description>Adjustable ergonomic office chair with lumbar support and breathable mesh back</Description>
+      <ProductType>Office Furniture</ProductType>
+      <ProductStatus>Active</ProductStatus>
+      <Dimensions>
+        <Width unit="inches">26.5</Width>
+        <Height unit="inches">42.0</Height>
+        <Depth unit="inches">25.0</Depth>
+      </Dimensions>
+      <Weight unit="lbs">35.2</Weight>
+      <InventoryDetails>
+        <QuantityOnHand>78</QuantityOnHand>
+        <ReorderLevel>20</ReorderLevel>
+        <ReorderQuantity>50</ReorderQuantity>
+        <LastRestockDate>2025-01-10</LastRestockDate>
+        <LastStockCount>2025-01-25</LastStockCount>
+        <ShelfLocation>F-04-B</ShelfLocation>
+        <AvailableForSale>true</AvailableForSale>
+      </InventoryDetails>
+      <PricingInfo>
+        <WholesalePrice currency="USD">149.75</WholesalePrice>
+        <RetailPrice currency="USD">249.99</RetailPrice>
+        <MSRP currency="USD">279.99</MSRP>
+        <Discount type="Percentage" amount="10"/>
+      </PricingInfo>
+      <SupplierInfo>
+        <SupplierID>SUP-5567</SupplierID>
+        <SupplierName>Office Comfort Solutions</SupplierName>
+        <LeadTimeDays>5</LeadTimeDays>
+      </SupplierInfo>
+    </Product>
+    <Product SKU="APPL-3390" DepartmentCode="APPLIANCES">
+      <ProductName>Smart Refrigerator</ProductName>
+      <Brand>ColdTech</Brand>
+      <ModelNumber>CT-SR450</ModelNumber>
+      <Description>French door refrigerator with smart home integration and touch screen</Description>
+      <ProductType>Refrigerator</ProductType>
+      <ProductStatus>Low Stock</ProductStatus>
+      <Dimensions>
+        <Width unit="inches">35.8</Width>
+        <Height unit="inches">70.0</Height>
+        <Depth unit="inches">31.5</Depth>
+      </Dimensions>
+      <Weight unit="lbs">320.0</Weight>
+      <InventoryDetails>
+        <QuantityOnHand>8</QuantityOnHand>
+        <ReorderLevel>10</ReorderLevel>
+        <ReorderQuantity>15</ReorderQuantity>
+        <LastRestockDate>2024-12-20</LastRestockDate>
+        <LastStockCount>2025-01-25</LastStockCount>
+        <ShelfLocation>A-22-A</ShelfLocation>
+        <AvailableForSale>true</AvailableForSale>
+      </InventoryDetails>
+      <PricingInfo>
+        <WholesalePrice currency="USD">1450.00</WholesalePrice>
+        <RetailPrice currency="USD">2399.99</RetailPrice>
+        <MSRP currency="USD">2499.99</MSRP>
+        <Discount type="Fixed" amount="200.00"/>
+      </PricingInfo>
+      <SupplierInfo>
+        <SupplierID>SUP-1187</SupplierID>
+        <SupplierName>Home Appliance Warehouse</SupplierName>
+        <LeadTimeDays>15</LeadTimeDays>
+      </SupplierInfo>
+    </Product>
+    <Product SKU="SPORT-4562" DepartmentCode="SPORTING">
+      <ProductName>Carbon Fiber Mountain Bike</ProductName>
+      <Brand>AlpineRider</Brand>
+      <ModelNumber>AR-CF290</ModelNumber>
+      <Description>Professional grade carbon fiber mountain bike with 29-inch wheels and premium suspension</Description>
+      <ProductType>Bicycle</ProductType>
+      <ProductStatus>Active</ProductStatus>
+      <Dimensions>
+        <Width unit="inches">24.5</Width>
+        <Height unit="inches">43.0</Height>
+        <Depth unit="inches">68.0</Depth>
+      </Dimensions>
+      <Weight unit="lbs">22.7</Weight>
+      <InventoryDetails>
+        <QuantityOnHand>12</QuantityOnHand>
+        <ReorderLevel>5</ReorderLevel>
+        <ReorderQuantity>10</ReorderQuantity>
+        <LastRestockDate>2025-01-05</LastRestockDate>
+        <LastStockCount>2025-01-25</LastStockCount>
+        <ShelfLocation>S-08-D</ShelfLocation>
+        <AvailableForSale>true</AvailableForSale>
+      </InventoryDetails>
+      <PricingInfo>
+        <WholesalePrice currency="USD">1899.00</WholesalePrice>
+        <RetailPrice currency="USD">3199.99</RetailPrice>
+        <MSRP currency="USD">3499.99</MSRP>
+        <Discount type="None" amount="0"/>
+      </PricingInfo>
+      <SupplierInfo>
+        <SupplierID>SUP-9812</SupplierID>
+        <SupplierName>Premium Cycles Distribution</SupplierName>
+        <LeadTimeDays>20</LeadTimeDays>
+      </SupplierInfo>
+    </Product>
+    <Product SKU="TOOL-6734" DepartmentCode="TOOLS">
+      <ProductName>Cordless Power Drill Set</ProductName>
+      <Brand>PowerMaster</Brand>
+      <ModelNumber>PM-2000X</ModelNumber>
+      <Description>20V lithium-ion cordless drill with variable speed, 2 batteries, charger, and 50-piece bit set</Description>
+      <ProductType>Power Tool</ProductType>
+      <ProductStatus>Discontinued</ProductStatus>
+      <Dimensions>
+        <Width unit="inches">12.0</Width>
+        <Height unit="inches">16.5</Height>
+        <Depth unit="inches">4.8</Depth>
+      </Dimensions>
+      <Weight unit="lbs">8.3</Weight>
+      <InventoryDetails>
+        <QuantityOnHand>5</QuantityOnHand>
+        <ReorderLevel>0</ReorderLevel>
+        <ReorderQuantity>0</ReorderQuantity>
+        <LastRestockDate>2024-10-15</LastRestockDate>
+        <LastStockCount>2025-01-25</LastStockCount>
+        <ShelfLocation>T-11-F</ShelfLocation>
+        <AvailableForSale>true</AvailableForSale>
+      </InventoryDetails>
+      <PricingInfo>
+        <WholesalePrice currency="USD">89.50</WholesalePrice>
+        <RetailPrice currency="USD">129.99</RetailPrice>
+        <MSRP currency="USD">169.99</MSRP>
+        <Discount type="Percentage" amount="25"/>
+      </PricingInfo>
+      <SupplierInfo>
+        <SupplierID>SUP-4420</SupplierID>
+        <SupplierName>Professional Tool Supply</SupplierName>
+        <LeadTimeDays>7</LeadTimeDays>
+      </SupplierInfo>
+    </Product>
+  </ProductList>
+</InventoryData>
