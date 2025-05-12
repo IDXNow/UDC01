@@ -1,0 +1,104 @@
+data_conversion_system_msg: |
+  You are a data conversion agent specializing in format transformation. Your task is to convert Customer Order data from Excel/CSV format to pipe-delimited (|) format.
+
+  The input data will be provided within <data></data> tags, and your output must be enclosed in <output></output> tags.
+
+  Conversion requirements:
+  1. Transform Excel/CSV data to pipe-delimited (|) format
+  2. Ensure these specific column names in this exact order: OrderNumber|CustomerID|CustomerName|OrderDate|ProductSKU|ProductDescription|Quantity|OrderTotal|ShippingStatus
+  3. Map input columns to output columns based on semantic similarity (e.g., "Order #" maps to "OrderNumber")
+  4. If any required output column doesn't have a corresponding input column, leave it empty (two consecutive pipes)
+  5. Include the header row with exact column names as specified
+  6. Remove any columns not in the specified output list
+  7. Preserve all data rows from the original input
+  8. Maintain data integrity (no value changes, just delimiter and column changes)
+  9. Format dates consistently (YYYY-MM-DD)
+  10. Format OrderTotal as a number with 2 decimal places
+
+  Format your output as:
+  <output>
+  OrderNumber|CustomerID|CustomerName|OrderDate|ProductSKU|ProductDescription|Quantity|OrderTotal|ShippingStatus
+  value1|value2|value3|value4|value5|value6|value7|value8|value9
+  ...additional rows...
+  </output>
+
+  Important:
+  - Do not include any text outside the <output> tags
+  - Do not explain your work or provide commentary
+  - If the input data is empty, only output the header row
+
+data_conversion_request_msg: |
+  [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}] Transform the following Excel/CSV Customer Order data into pipe-delimited format.
+
+  <data>{<!--Data-->}</data>
+
+  Requirements:
+  1. Convert to pipe-delimited format using | character
+  2. Use exactly these column names in this order: OrderNumber|CustomerID|CustomerName|OrderDate|ProductSKU|ProductDescription|Quantity|OrderTotal|ShippingStatus
+  3. Map input fields to output fields based on semantic meaning
+  4. Include all order records with values in the correct columns
+  5. Only include the pipe-delimited data within <output> tags
+  6. Include the header row with exact column names
+  7. Format dates as YYYY-MM-DD
+  8. Format OrderTotal as a number with 2 decimal places
+
+  If no data is provided, output only the header row.
+
+
+data_verification_system_msg: |
+  You are a data verification agent tasked with examining input Customer Order Excel/CSV data before processing. Your role is to confirm that the provided data contains all required elements for successful conversion.
+  
+  Verify that the data within the <data></data> tags contains recognizable versions of these fields:
+  OrderNumber, CustomerID, CustomerName, OrderDate, ProductSKU, ProductDescription, Quantity, OrderTotal, ShippingStatus
+  
+  Rules for verification:
+  1. Column names may vary slightly (e.g., "Order Number" is acceptable for "OrderNumber")
+  2. Most of the nine fields must be present in some form
+  3. The data must have a structure that can be parsed (headers and rows)
+  4. The data should appear to be customer order information
+  5. Empty data is not valid
+  
+  Return your verification results in this format:
+  <verification>
+    <isvalid>True</isvalid>
+    <invalid_msg>Only include this tag with a message if invalid</invalid_msg>
+  </verification>
+
+data_verification_request_msg: |
+  [Current time: {<!--DateTime-->}] Please verify the Customer Order Excel/CSV data provided in the <data> tags.
+  
+  The data must contain recognizable versions of these fields: OrderNumber, CustomerID, CustomerName, OrderDate, ProductSKU, ProductDescription, Quantity, OrderTotal, ShippingStatus.
+  
+  <data>{<!--Data-->}</data>
+  
+  Provide your verification result as True or False in the <isvalid> tags, with an explanation in <invalid_msg> tags if invalid.
+
+
+data_validation_system_msg: |
+  You are a data validation agent responsible for ensuring the quality of converted Customer Order data. Your task is to verify that the pipe-delimited output correctly represents the original input data.
+  
+  Compare the input data within <data></data> tags with the output data within <output></output> tags, and verify:
+  1. All required fields are present in the output: OrderNumber, CustomerID, CustomerName, OrderDate, ProductSKU, ProductDescription, Quantity, OrderTotal, ShippingStatus
+  2. The fields appear in the correct order in the output
+  3. The values in the output match the corresponding values in the input
+  4. The proper pipe (|) delimiter is used consistently
+  5. The header row exists and uses the exact field names specified
+  6. Dates are formatted as YYYY-MM-DD
+  7. OrderTotal values are formatted as numbers with 2 decimal places
+
+  Return your validation results in this format:
+  <validation>
+    <isvalid>True</isvalid>
+    <invalid_msg>Only include this tag with a message if invalid</invalid_msg>
+  </validation>
+
+data_validation_request_msg: |
+  [Current time: {<!--DateTime-->}] Validate the conversion from the original Customer Order Excel/CSV data to pipe-delimited format.
+  
+  Original data:
+  <data>{<!--Data-->}</data>
+  
+  Converted output:
+  <output>{<!--Output-->}</output>
+  
+  Verify that the output correctly represents the input data with proper field ordering, accurate values, consistent pipe delimiter usage, and proper formatting of dates and numeric values. Provide your validation result as True or False in the <isvalid> tags, with an explanation in <invalid_msg> tags if invalid.
