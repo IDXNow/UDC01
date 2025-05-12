@@ -1,0 +1,108 @@
+{
+  "api_base_url": "http://localhost:1234/",
+  "default_model": "granite-3.1-8b-instruct",
+  "default_endpoint": "v1/chat/completions",
+  "default_temperature": 0.3,
+  "max_retries": 3,
+  "file_load": {
+    "default_file": "samples/sources/sales_invoice.csv",
+    "folder": "samples/sources/",
+    "search_pattern": "*.csv"
+  },
+  "file_save": {
+    "folder": "output/",
+    "file_extension": "txt"
+  },
+  "log_file":{
+    "folder": "logs/",
+    "file_extension": "log"
+  },
+  "agents": {
+    "data_verifier": [
+      {
+        "name": "Jane Dirac",
+        "role": "verifiy",
+        "instructions": "data_verification_system_msg",
+        "request_instructions": "data_verification_request_msg"
+      },
+      {
+        "name": "Chris Einstein",
+        "role": "verifiy",
+        "instructions": "data_verification_system_msg",
+        "request_instructions": "data_verification_request_msg"
+      },
+      {
+        "name": "Nathan Fourier",
+        "role": "verifiy",
+        "temperature": 0.1,
+        "instructions": "data_verification_system_msg",
+        "request_instructions": "data_verification_request_msg"
+      }
+    ],
+    "data_conversion": {
+      "name": "Ted Sagan",
+      "role": "convert",
+      "model": "gpt-4",
+      "temperature": 0.2
+    },
+    "data_validator": [
+      {
+        "name": "Charles Turing",
+        "role": "validate",
+        "instructions": "data_validation_system_msg",
+        "request_instructions": "data_validation_request_msg"
+        
+      },
+      {
+        "name": "Macy Hopper",
+        "role": "validate",
+        "temperature": 0.2,
+        "instructions": "data_validation_system_msg",
+        "request_instructions": "data_validation_request_msg"
+      },
+      {
+        "name": "Vanessa Lovelace",
+        "role": "validate",
+        "instructions": "data_validation_system_msg",
+        "request_instructions": "data_validation_request_msg"
+      }
+    ],
+    
+    "log_message_router": {
+      "name": "Bob Newton",
+      "role": "route",
+      "instructions": "log_message_routing_system_msg",
+      "request_instructions": "log_message_routing_request_msg"
+    },
+
+    "message_composer": {
+      "name": "Message Composer",
+      "role": "compose",
+      "instructions": "message_composer_system_msg",
+      "request_instructions": "message_composer_request_msg"
+    },
+    "message_validator": [
+      {
+        "name": "Jim Curie",
+        "role": "validate",
+        "instructions": "message_validation_system_msg",
+        "request_instructions": "message_validation_request_msg"
+        
+      },
+      {
+        "name": "Lisa Bohr",
+        "role": "validate",
+        "temperature": 0.2,
+        "instructions": "data_validation_system_msg",
+        "request_instructions": "data_validation_request_msg"
+      },
+      {
+        "name": "Myrna Pasteur",
+        "role": "validate",
+        "instructions": "data_validation_system_msg",
+        "request_instructions": "data_validation_request_msg"
+      }
+    ]
+    
+  }
+}
