@@ -57,9 +57,12 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | No
     Returns:
         The string between the tags if both are found, otherwise None.
     """
-    start_tag = re.escape(start_tag)  # Escape special characters in the start tag
-    end_tag = re.escape(end_tag)      # Escape special characters in the end tag
-    match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE) #added re.DOTALL and re.IGNORECASE
+
+    # Escape special characters in the tags
+    start_tag = re.escape(start_tag) 
+    end_tag = re.escape(end_tag) 
+
+    match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
 
     if match:
         return match.group(1).strip()
