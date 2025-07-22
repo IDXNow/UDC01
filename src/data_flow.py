@@ -8,7 +8,7 @@ from validators import run_agent, parse_isvalid, get_str_between_tags
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 ################################################################################
-# Helper functions implementing the early‑exit 2 / 3 consensus logic           #
+# Helper functions implementing the early‑exit 2 / 3 consensus logic           #
 ################################################################################
 def _prepare_agent(agent_cfg: dict, config: dict):
     """Populate common runtime attributes onto an agent configuration."""
@@ -127,7 +127,7 @@ def process_data(file_path: str, config: dict) -> dict:
         return {"error": "Could not load file", "file_path": file_path}
 
     # ------------------------------------------------------------------
-    # 1. Pre‑conversion verification
+    # 1. Pre-conversion verification
     # ------------------------------------------------------------------
     pre_verification_results = _verify_input_data_2of3(raw_data, config)
     success_count = sum(1 for r in pre_verification_results if r.get("isvalid"))
@@ -174,7 +174,7 @@ def process_data(file_path: str, config: dict) -> dict:
         logging.warning(f"Validation failed (attempt {retry_count}/{max_retries}); retrying conversion…")
 
     # ------------------------------------------------------------------
-    # 3. Wrap‑up summary
+    # 3. Wrap-up summary
     # ------------------------------------------------------------------
     if conversion_result.get("status") == "success":
         return conversion_result
