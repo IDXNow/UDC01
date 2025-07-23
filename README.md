@@ -77,7 +77,7 @@ The core transformation pipeline consists of several key stages:
 ## Technical Requirements
 
 ### Dependencies
-To run the Universal Data Converter, you'll need the following Python packages:
+To run the Universal Data Converter with the samples provided, you'll need the following Python packages:
 
 ```
 pandas
