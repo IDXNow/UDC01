@@ -3,82 +3,9 @@ import pandas as pd
 import logging
 import time
 from datetime import datetime
-from validators import run_agent, parse_isvalid, get_str_between_tags
+from validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-################################################################################
-# Helper functions implementing the early‑exit 2 / 3 consensus logic           #
-################################################################################
-def _prepare_agent(agent_cfg: dict, config: dict):
-    """Populate common runtime attributes onto an agent configuration."""
-    agent_cfg["base_url"] = config["api_base_url"]
-    agent_cfg["endpoint"] = config["default_endpoint"]
-
-
-def _verify_input_data_2of3(raw_data: str, config: dict) -> list:
-    """Run the data-verification agents using the 2/3 strategy
-    - We always execute the first two agents.
-    - If their <isvalid> results agree we *stop* - consensus reached.
-    - If they disagree (one True, one False) we execute the third agent to break the tie.
-    The function returns a list of parsed verification dictionaries - one for every agent *actually run* (two or three).
-    """
-    agents = config["agents"]["data_verifier"]
-    results = []
-
-    for idx, agent in enumerate(agents):
-        if idx == 2 and len(results) == 2:
-            # Only reach here when the first two results were opposing.
-            same = results[0]["isvalid"] == results[1]["isvalid"]
-            if same:
-                break  # No need to run the third agent.
-        _prepare_agent(agent, config)
-        payload = {
-            "request": config.get(agent.get("request_instructions"), "")
-            .replace("{<!--Data-->}", raw_data),
-            "instructions": config.get(agent.get("instructions"), ""),
-        }
-        logging.debug(
-            f"Payload for verification agent {agent.get('name')}: {payload}"
-        )
-        message = run_agent(agent, payload)
-        parsed = parse_isvalid(message["content"])
-        results.append(parsed)
-
-        # After the second agent, decide if we need a tie‑breaker.
-        if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
-            break  # Consensus (both True or both False).
-    return results
-
-
-def _validate_output_2of3(raw_data: str, output_data: str, config: dict) -> list:
-    """Run the data-validation agents using the same 2/3 early-exit logic"""
-    agents = config["agents"]["data_validator"]
-    results = []
-
-    for idx, agent in enumerate(agents):
-        if idx == 2 and len(results) == 2:
-            if results[0]["isvalid"] == results[1]["isvalid"]:
-                break  # consensus already achieved
-        _prepare_agent(agent, config)
-        payload = {
-            "instructions": config.get(agent.get("instructions"), ""),
-            "request": config.get(agent.get("request_instructions"), "")
-            .replace("{<!--Data-->}", raw_data)
-            .replace("{<!--Output-->}", output_data)
-            .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-        }
-        logging.debug(
-            f"Payload for validation agent {agent.get('name')}: {payload}"
-        )
-        message = run_agent(agent, payload)
-        parsed = parse_isvalid(message["content"])
-        results.append(parsed)
-
-        if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
-            break  # early consensus
-    return results
-
 
 ################################################################################
 # Conversion logic                                                             #
@@ -96,7 +23,7 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0) -> dict:
         .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
 
-    _prepare_agent(agent, config)
+    prepare_agent(agent, config)
 
     payload = {
         "request": request_instructions,
@@ -126,10 +53,10 @@ def process_data(file_path: str, config: dict) -> dict:
     if raw_data is None:
         return {"error": "Could not load file", "file_path": file_path}
 
-    # ------------------------------------------------------------------
+    # -----------------------------------------------------------------
     # 1. Pre-conversion verification
-    # ------------------------------------------------------------------
-    pre_verification_results = _verify_input_data_2of3(raw_data, config)
+    # -----------------------------------------------------------------
+    pre_verification_results = verify_input_data_2of3(raw_data, config)
     success_count = sum(1 for r in pre_verification_results if r.get("isvalid"))
     if success_count < 2:
         logging.error("Pre-conversion verification failed (2/3 rule not met).")
@@ -139,9 +66,9 @@ def process_data(file_path: str, config: dict) -> dict:
             "file_path": file_path,
         }
 
-    # ------------------------------------------------------------------
+    # -----------------------------------------------------------------
     # 2. Conversion + validation with retry logic
-    # ------------------------------------------------------------------
+    # -----------------------------------------------------------------
     while retry_count < max_retries:
         conv_response = perform_conversion(raw_data, config, retry_count)
         conversion_content = conv_response.get("content") if isinstance(conv_response, dict) else None
@@ -157,7 +84,7 @@ def process_data(file_path: str, config: dict) -> dict:
             }
 
         # Validate converted output
-        validation_results = _validate_output_2of3(raw_data, output_data, config)
+        validation_results = validate_output_2of3(raw_data, output_data, config)
         val_success_count = sum(1 for r in validation_results if r.get("isvalid"))
 
         if val_success_count >= 2:
