@@ -2,10 +2,12 @@ import argparse
 import json
 import os
 from data_flow import process_data
-from messaging_flow import send_notifications, save_logs
 import glob
 import logging
 import yaml
+from datetime import datetime
+import uuid
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -42,6 +44,41 @@ def load_config(config_path: str, conversion_path: str) -> dict:
         raise ValueError(f"Invalid JSON format in config file: {e}")
     except yaml.YAMLError as e: 
         raise ValueError(f"Invalid YAML format in config file: {e}")
+
+
+def save_logs(log_data: dict, config: dict):
+    """
+    Saves log data to a file with a unique filename.
+
+    Args:
+        log_data (dict): The log data to be saved.
+        config (dict): The configuration dictionary containing log file settings.
+    """
+    try:
+        log_folder = config["log_file"]["folder"]
+        log_extension = config["log_file"]["file_extension"]
+
+        # Ensure the log folder exists
+        os.makedirs(log_folder, exist_ok=True)
+
+        # Generate a unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID for brevity
+        log_filename = f"{timestamp}_{unique_id}.{log_extension}"
+        log_filepath = os.path.join(log_folder, log_filename)
+
+        # Save the log data to the file
+        with open(log_filepath, "w") as log_file:
+            log_file.write(str(log_data)) # Save the entire object as a string
+            #if you want to format it as json use:
+            #import json
+            #json.dump(log_data, log_file, indent=4)
+
+        logging.info(f"Log data saved to: {log_filepath}")
+
+    except (KeyError, OSError) as e:
+        logging.error(f"Error saving log data: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Universal Data Converter")
