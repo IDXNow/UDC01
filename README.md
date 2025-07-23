@@ -102,6 +102,11 @@ The framework requires access to a compatible LLM API. The default configuration
    ```bash
    pip install pandas pyyaml requests
    ```
+   or
+   ```bash
+   pip install -r requirements.txt
+   ```
+   
 
 3. Ensure your LLM API is accessible (default is http://localhost:1234/).
 
