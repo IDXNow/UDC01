@@ -6,6 +6,81 @@ import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+################################################################################
+# Helper functions implementing the early‑exit 2 / 3 consensus logic           #
+################################################################################
+def prepare_agent(agent_cfg: dict, config: dict):
+    """Populate common runtime attributes onto an agent configuration."""
+    agent_cfg["base_url"] = config["api_base_url"]
+    agent_cfg["endpoint"] = config["default_endpoint"]
+
+
+def verify_input_data_2of3(raw_data: str, config: dict) -> list:
+    """Run the data-verification agents using the 2/3 strategy
+    - We always execute the first two agents.
+    - If their <isvalid> results agree we *stop* - consensus reached.
+    - If they disagree (one True, one False) we execute the third agent to break the tie.
+    The function returns a list of parsed verification dictionaries - one for every agent *actually run* (two or three).
+    """
+    agents = config["agents"]["data_verifier"]
+    results = []
+    logging.info(f"Verifying input data") # comment
+
+    for idx, agent in enumerate(agents):
+        if idx == 2 and len(results) == 2:
+            # Only reach here when the first two results were opposing.
+            same = results[0]["isvalid"] == results[1]["isvalid"]
+            if same:
+                break  # No need to run the third agent.
+        prepare_agent(agent, config)
+        payload = {
+            "request": config.get(agent.get("request_instructions"), "")
+            .replace("{<!--Data-->}", raw_data),
+            "instructions": config.get(agent.get("instructions"), ""),
+        }
+        logging.debug(
+            f"Payload for verification agent {agent.get('name')}: {payload}"
+        )
+        message = run_agent(agent, payload)
+        parsed = parse_isvalid(message["content"])
+        results.append(parsed)
+
+        # After the second agent, decide if we need a tie‑breaker.
+        if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
+            break  # Consensus (both True or both False).
+    return results
+
+
+def validate_output_2of3(raw_data: str, output_data: str, config: dict) -> list:
+    """Run the data-validation agents using the same 2/3 early-exit logic"""
+    agents = config["agents"]["data_validator"]
+    results = []
+    logging.info(f"Validating output data") # comment
+
+    for idx, agent in enumerate(agents):
+        if idx == 2 and len(results) == 2:
+            if results[0]["isvalid"] == results[1]["isvalid"]:
+                break  # consensus already achieved
+        prepare_agent(agent, config)
+        payload = {
+            "instructions": config.get(agent.get("instructions"), ""),
+            "request": config.get(agent.get("request_instructions"), "")
+            .replace("{<!--Data-->}", raw_data)
+            .replace("{<!--Output-->}", output_data)
+            .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        }
+        logging.debug(
+            f"Payload for validation agent {agent.get('name')}: {payload}"
+        )
+        message = run_agent(agent, payload)
+        parsed = parse_isvalid(message["content"])
+        results.append(parsed)
+
+        if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
+            break  # early consensus
+    return results
+
+
 def run_agent(agent_config: dict, payload: dict) -> dict:
     """Calls the specified LLM agent with the given payload."""
 
@@ -86,54 +161,4 @@ def parse_isvalid(result_string: str) -> dict:
 
     return result
 
-def validate_output(raw_data: str, output_data: str, config: dict) -> list:
-    """
-    Run the Data Validation agents on the converted output to verify correctness.
-    """
-
-    base_url = config["api_base_url"]
-    agents = config["agents"]["data_validator"]
-    results = []
-
-    for agent in agents:
-        agent["base_url"] = base_url
-        agent["endpoint"] = config["default_endpoint"] # for now
-        payload = {
-            "instructions": config.get(agent.get("instructions"),""),
-            "request": config.get(agent.get("request_instructions"),"").replace("{<!--Data-->}",raw_data).replace("{<!--Output-->}",output_data).replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        }
-        
-        logging.debug(f"Payload for validation agent {agent.get('name')}: {payload}")
-        result = run_agent(agent, payload)
-        logging.debug(f"Validation Result: {result}")
-        result = parse_isvalid(result["content"])
-        results.append(result)
-        
-    return results
-
-def verify_input_data(raw_data: str, config: dict) -> list:
-    """
-    Run the Data Verification agents on the raw data to verify correctness before conversion.
-    """
-    agents = config["agents"]["data_verifier"]
-    results = []
-    
-    for agent in agents:
-        
-        # add agent props
-        agent["base_url"] = config["api_base_url"]
-        agent["endpoint"] = config["default_endpoint"]
-        
-        payload = {
-            "request": config.get(agent.get("request_instructions"),"").replace("{<!--Data-->}",raw_data),
-            "instructions": config.get(agent.get("instructions"),"")
-        }
-
-        logging.debug(f"Payload for pre-verification agent {agent.get('name')}: {payload}")
-        result = run_agent(agent, payload)
-        logging.debug(f"Pre-verification Result: {result}")
-        result = parse_isvalid(result["content"])
-        results.append(result)
-        
-    return results
 
