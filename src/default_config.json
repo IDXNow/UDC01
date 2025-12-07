@@ -4,6 +4,9 @@
   "default_endpoint": "v1/chat/completions",
   "default_temperature": 0.3,
   "max_retries": 3,
+  "api_timeout": 600,
+  "api_retry_attempts": 3,
+  "api_retry_backoff": 2,
   "file_load": {
     "default_file": "samples/sources/sales_invoice.csv",
     "folder": "samples/sources/",

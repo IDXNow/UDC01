@@ -39,6 +39,27 @@ def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
 
     logging.info(f"Conversion YAML validation passed for {conversion_path}")
 
+def validate_agent_config(config: dict):
+    """Validates agent configuration structure."""
+    required_agent_types = ["data_verifier", "data_conversion", "data_validator"]
+
+    for agent_type in required_agent_types:
+        if agent_type not in config.get("agents", {}):
+            raise ValueError(f"Missing required agent type: {agent_type}")
+
+        agents = config["agents"][agent_type]
+        agent_list = agents if isinstance(agents, list) else [agents]
+
+        for agent in agent_list:
+            required_keys = ["name", "role"]
+            missing = [k for k in required_keys if k not in agent]
+            if missing:
+                raise ValueError(
+                    f"Agent '{agent.get('name', 'unknown')}' in '{agent_type}' missing required keys: {missing}"
+                )
+
+    logging.info("Agent configuration validation passed")
+
 def load_config(config_path: str, conversion_path: str) -> dict:
     """Loads the configuration from the specified JSON file."""
     if not os.path.exists(config_path):
@@ -52,8 +73,11 @@ def load_config(config_path: str, conversion_path: str) -> dict:
             yaml_data = yaml.safe_load(y)
 
         validate_conversion_yaml(yaml_data, conversion_path)
-        config.update(yaml_data) 
-        
+        config.update(yaml_data)
+
+        # Validate agent configuration structure
+        validate_agent_config(config)
+
         # Move global attributes to the agents
         for agent_type in config["agents"]:
             if type(config["agents"][agent_type]) is list:
@@ -62,12 +86,18 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                     agent["default_model"] = config["default_model"]
                     agent["default_temperature"] = config["default_temperature"]
                     agent["default_endpoint"] = config["default_endpoint"]
+                    agent["timeout"] = config.get("api_timeout", 600)
+                    agent["retry_attempts"] = config.get("api_retry_attempts", 3)
+                    agent["retry_backoff"] = config.get("api_retry_backoff", 2)
             else:
                 agent = config["agents"][agent_type]
                 agent["base_url"] = config["api_base_url"]
                 agent["default_model"] = config["default_model"]
                 agent["default_temperature"] = config["default_temperature"]
                 agent["default_endpoint"] = config["default_endpoint"]
+                agent["timeout"] = config.get("api_timeout", 600)
+                agent["retry_attempts"] = config.get("api_retry_attempts", 3)
+                agent["retry_backoff"] = config.get("api_retry_backoff", 2)
 
         return config
     except json.JSONDecodeError as e:

@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 import requests
 import re
+import time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -113,43 +114,82 @@ def validate_output_2of3(raw_data: str, output_data: str, config: dict) -> list:
 
 
 def run_agent(agent_config: dict, payload: dict) -> dict:
-    """Calls the specified LLM agent with the given payload."""
+    """Calls the specified LLM agent with the given payload with retry logic."""
+    start_time = time.time()
 
-    try:
-        url = agent_config["base_url"] + agent_config["endpoint"]
-        headers = {"Content-Type": "application/json"}
-        
-        model = agent_config.get("model", agent_config["default_model"]) 
-        temperature = agent_config.get("temperature", agent_config["default_temperature"]) 
-        
-        # Create the messages structure.
-        messages = []
-        system_msg = {"role":"system", "content": payload.get("instructions")}
-        messages.append(system_msg)
+    max_retries = agent_config.get("retry_attempts", 3)
+    backoff = agent_config.get("retry_backoff", 2)
+    timeout = agent_config.get("timeout", 600)
 
-        user_query = {"role":"user", "content":payload.get("request")}
-        messages.append(user_query)
-        
-        # create the json payload
-        # update these parameters as needed (move to default config)
-        json_payload = {
-            "model": model,
-            "temperature": temperature,
-            "max_tokens": -1,
-            "stream": False,
-            "messages": messages
+    url = agent_config["base_url"] + agent_config["endpoint"]
+    headers = {"Content-Type": "application/json"}
+
+    model = agent_config.get("model", agent_config["default_model"])
+    temperature = agent_config.get("temperature", agent_config["default_temperature"])
+
+    # Create the messages structure.
+    messages = []
+    system_msg = {"role":"system", "content": payload.get("instructions")}
+    messages.append(system_msg)
+
+    user_query = {"role":"user", "content":payload.get("request")}
+    messages.append(user_query)
+
+    # create the json payload
+    json_payload = {
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": -1,
+        "stream": False,
+        "messages": messages
+    }
+
+    # Retry loop with exponential backoff
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(url, json=json_payload, headers=headers, timeout=timeout)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+
+            result = response.json()["choices"][0]["message"]
+
+            # Add performance metadata
+            elapsed_time = time.time() - start_time
+            result["_metadata"] = {
+                "agent_name": agent_config.get("name"),
+                "agent_role": agent_config.get("role"),
+                "elapsed_time": round(elapsed_time, 2),
+                "model": model,
+                "temperature": temperature,
+                "retry_count": attempt
+            }
+            logging.info(f"Agent {agent_config.get('name')} completed in {elapsed_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+
+            return result
+
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                wait_time = backoff ** attempt
+                logging.warning(f"Agent {agent_config.get('name')} failed (attempt {attempt + 1}/{max_retries}), "
+                              f"retrying in {wait_time}s: {e}")
+                time.sleep(wait_time)
+            else:
+                # Final attempt failed
+                elapsed_time = time.time() - start_time
+                logging.error(f"Agent {agent_config.get('name')} failed after {max_retries} attempts ({elapsed_time:.2f}s): {e}")
+
+    # All retries exhausted
+    elapsed_time = time.time() - start_time
+    return {
+        "error": str(last_error),
+        "_metadata": {
+            "agent_name": agent_config.get("name"),
+            "elapsed_time": round(elapsed_time, 2),
+            "failed": True,
+            "retry_count": max_retries
         }
-        
-        response = requests.post(url, json=json_payload, headers=headers, timeout=600) # set timeout as needed
-        response.raise_for_status()  # Raise HTTPError for bad responses
-
-        # logging.debug(f'payload: {json_payload}')
-        # logging.debug(f'response: {response.json()["choices"][0]["message"]}')
-
-        return response.json()["choices"][0]["message"] #just return the message
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error calling validation agent {agent_config.get('name')}: {e}")
-        return {"error": str(e)}
+    }
 
 def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | None:
     """

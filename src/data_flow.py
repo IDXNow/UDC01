@@ -99,11 +99,11 @@ def process_data(file_path: str, config: dict) -> dict:
 
         if val_success_count >= 2:
             # Success – save the file and break.
-            save_output_data(output_data, file_path, config)
+            output_path = save_output_data(output_data, file_path, config)
             conversion_result = {
                 "status": "success",
                 "validation": validation_results,
-                "output_path": "saved",  # path logged inside save_output_data
+                "output_path": output_path if output_path else "save_failed",
             }
             break
 
@@ -156,8 +156,9 @@ def parse_output(message_content: str) -> str | None:
     return get_str_between_tags(message_content, "<output>", "</output>")
 
 
-def save_output_data(output_data: str, file_path: str, config: dict):
-    """Persist *output_data* to disk in the configured output directory."""
+def save_output_data(output_data: str, file_path: str, config: dict) -> str | None:
+    """Persist *output_data* to disk in the configured output directory.
+    Returns the output file path on success, None on failure."""
     try:
         output_dir = config["file_save"]["folder"]
         file_ext = config["file_save"]["file_extension"]
@@ -170,6 +171,8 @@ def save_output_data(output_data: str, file_path: str, config: dict):
         with open(out_path, "w", encoding="utf-8") as fh:
             fh.write(output_data)
         logging.info(f"Output saved to {out_path}")
+        return out_path
     except Exception as exc:
         logging.error(f"Error saving output data: {exc}")
+        return None
 
