@@ -1,5 +1,4 @@
 import logging
-import random
 from datetime import datetime
 import requests
 import re
@@ -7,8 +6,17 @@ import re
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 ################################################################################
-# Helper functions implementing the early‑exit 2 / 3 consensus logic           #
+# Helper functions                                                             #
 ################################################################################
+def validate_no_placeholders(text: str) -> bool:
+    """Check if any unreplaced placeholders remain."""
+    placeholders = ["{<!--Data-->}", "{<!--DateTime-->}", "{<!--RunIndex-->}", "{<!--Output-->}"]
+    for ph in placeholders:
+        if ph in text:
+            logging.error(f"Unreplaced placeholder found: {ph}")
+            return False
+    return True
+
 def prepare_agent(agent_cfg: dict, config: dict):
     """Populate common runtime attributes onto an agent configuration."""
     agent_cfg["base_url"] = config["api_base_url"]
@@ -35,15 +43,27 @@ def verify_input_data_2of3(raw_data: str, config: dict) -> list:
         prepare_agent(agent, config)
         payload = {
             "request": config.get(agent.get("request_instructions"), "")
-            .replace("{<!--Data-->}", raw_data),
+            .replace("{<!--Data-->}", raw_data)
+            .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
             "instructions": config.get(agent.get("instructions"), ""),
         }
+
+        # Validate no placeholders remain
+        if not validate_no_placeholders(payload["request"]):
+            logging.error(f"Unreplaced placeholders in verification request for agent {agent.get('name')}")
+            results.append({"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
+            continue
+
         logging.debug(
             f"Payload for verification agent {agent.get('name')}: {payload}"
         )
         message = run_agent(agent, payload)
-        parsed = parse_isvalid(message["content"])
-        results.append(parsed)
+        if "error" in message:
+            logging.error(f"Agent {agent.get('name')} failed: {message['error']}")
+            results.append({"isvalid": False, "invalid_msg": f"Agent error: {message['error']}"})
+        else:
+            parsed = parse_isvalid(message.get("content", ""))
+            results.append(parsed)
 
         # After the second agent, decide if we need a tie‑breaker.
         if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
@@ -69,12 +89,23 @@ def validate_output_2of3(raw_data: str, output_data: str, config: dict) -> list:
             .replace("{<!--Output-->}", output_data)
             .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         }
+
+        # Validate no placeholders remain
+        if not validate_no_placeholders(payload["request"]):
+            logging.error(f"Unreplaced placeholders in validation request for agent {agent.get('name')}")
+            results.append({"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
+            continue
+
         logging.debug(
             f"Payload for validation agent {agent.get('name')}: {payload}"
         )
         message = run_agent(agent, payload)
-        parsed = parse_isvalid(message["content"])
-        results.append(parsed)
+        if "error" in message:
+            logging.error(f"Agent {agent.get('name')} failed: {message['error']}")
+            results.append({"isvalid": False, "invalid_msg": f"Agent error: {message['error']}"})
+        else:
+            parsed = parse_isvalid(message.get("content", ""))
+            results.append(parsed)
 
         if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
             break  # early consensus
@@ -85,11 +116,11 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     """Calls the specified LLM agent with the given payload."""
 
     try:
-        url = agent_config["base_url"] + agent_config["endpoint"] # pull base url and endpoint from agent config
+        url = agent_config["base_url"] + agent_config["endpoint"]
         headers = {"Content-Type": "application/json"}
         
-        model = agent_config.get("model", agent_config["default_model"]) # get the agent model, or the default
-        temperature = agent_config.get("temperature", agent_config["default_temperature"]) #get the agent temp, or the default
+        model = agent_config.get("model", agent_config["default_model"]) 
+        temperature = agent_config.get("temperature", agent_config["default_temperature"]) 
         
         # Create the messages structure.
         messages = []
@@ -99,8 +130,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         user_query = {"role":"user", "content":payload.get("request")}
         messages.append(user_query)
         
-        #create the json payload
-        #update these parameters as needed (move to default config)
+        # create the json payload
+        # update these parameters as needed (move to default config)
         json_payload = {
             "model": model,
             "temperature": temperature,
@@ -112,8 +143,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         response = requests.post(url, json=json_payload, headers=headers, timeout=600) # set timeout as needed
         response.raise_for_status()  # Raise HTTPError for bad responses
 
-        #logging.debug(f'payload: {json_payload}')
-        #logging.debug(f'response: {response.json()["choices"][0]["message"]}')
+        # logging.debug(f'payload: {json_payload}')
+        # logging.debug(f'response: {response.json()["choices"][0]["message"]}')
 
         return response.json()["choices"][0]["message"] #just return the message
     except requests.exceptions.RequestException as e:

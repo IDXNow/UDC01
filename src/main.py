@@ -11,6 +11,34 @@ import uuid
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
+    """Validates that YAML contains all required message components."""
+    required_keys = [
+        "data_conversion_system_msg",
+        "data_conversion_request_msg",
+        "data_verification_system_msg",
+        "data_verification_request_msg",
+        "data_validation_system_msg",
+        "data_validation_request_msg"
+    ]
+
+    missing_keys = [key for key in required_keys if key not in yaml_data]
+
+    if missing_keys:
+        raise ValueError(
+            f"Conversion YAML '{conversion_path}' is missing required keys: {missing_keys}\n"
+            f"Required keys are: {required_keys}"
+        )
+
+    # Validate that values are non-empty strings
+    for key in required_keys:
+        if not isinstance(yaml_data[key], str) or not yaml_data[key].strip():
+            raise ValueError(
+                f"Conversion YAML '{conversion_path}' has empty or invalid value for '{key}'"
+            )
+
+    logging.info(f"Conversion YAML validation passed for {conversion_path}")
+
 def load_config(config_path: str, conversion_path: str) -> dict:
     """Loads the configuration from the specified JSON file."""
     if not os.path.exists(config_path):
@@ -22,6 +50,8 @@ def load_config(config_path: str, conversion_path: str) -> dict:
             config = json.load(f)
         with open(conversion_path, "r") as y:  #load the yaml file
             yaml_data = yaml.safe_load(y)
+
+        validate_conversion_yaml(yaml_data, conversion_path)
         config.update(yaml_data) 
         
         # Move global attributes to the agents
@@ -69,10 +99,7 @@ def save_logs(log_data: dict, config: dict):
 
         # Save the log data to the file
         with open(log_filepath, "w") as log_file:
-            log_file.write(str(log_data)) # Save the entire object as a string
-            #if you want to format it as json use:
-            #import json
-            #json.dump(log_data, log_file, indent=4)
+            json.dump(log_data, log_file, indent=4)
 
         logging.info(f"Log data saved to: {log_filepath}")
 
@@ -82,12 +109,12 @@ def save_logs(log_data: dict, config: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Universal Data Converter")
-    parser.add_argument("--config", type=str, default="config/default_config.json", help="Path to main configuration file")
+    parser.add_argument("--config", type=str, default="samples/config/default_config.json", help="Path to main configuration file")
     parser.add_argument("--file", type=str, help="Specific file to load", default=None)
     parser.add_argument("--folder", type=str, help="Folder to search for files", default=None)
     parser.add_argument("--pattern", type=str, help="File search pattern (e.g., '*.csv')", default=None)
     parser.add_argument("--output-folder", type=str, help="Folder to save output files", default=None)
-    parser.add_argument("--conversion", type=str, default="config/conversions/default.yaml", help="path to conversion yaml")  
+    parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml", help="path to conversion yaml")  
 
     args = parser.parse_args()
 
@@ -108,7 +135,7 @@ def main():
         search_path = os.path.join(args.folder, args.pattern)
         files_to_process = glob.glob(search_path)
     else:
-        logging.warning("No file or folder/pattern specified. Nothing to process.")
+        logging.warning("No file or folder/pattern specified.  Nothing to process.")
         return
 
     # Process each file
@@ -116,9 +143,6 @@ def main():
         logging.info(f"Processing file: {file_path}")
         try:
             conversion_result = process_data(file_path, config)
-            
-            # Test conversion for now, no notification
-            #send_notifications(conversion_result, config)
             save_logs(conversion_result, config)
         except Exception as e:
             logging.error(f"Error processing file {file_path}: {e}")

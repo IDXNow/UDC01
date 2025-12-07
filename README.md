@@ -83,6 +83,7 @@ To run the Universal Data Converter with the samples provided, you'll need the f
 pandas
 pyyaml
 requests
+openpyxl
 ```
 
 ### LLM Requirements
@@ -100,7 +101,7 @@ The framework requires access to a compatible LLM API. The default configuration
 
 2. Install the required packages:
    ```bash
-   pip install pandas pyyaml requests
+   pip install pandas pyyaml requests openpyxl
    ```
    or
    ```bash
@@ -119,38 +120,43 @@ The Universal Data Converter is designed to be used from the command line, with 
 ### Command Line Options
 
 ```bash
-python src/main.py 
-  --config CONFIG_PATH           # Path to main configuration file
-  --conversion CONVERSION_PATH   # Path to conversion YAML
+python src/main.py
+  --config CONFIG_PATH           # Path to main configuration file (default: samples/config/default_config.json)
+  --conversion CONVERSION_PATH   # Path to conversion YAML (default: samples/conversions/sales_invoice_conv.yaml)
   --file FILE_PATH               # Specific file to load
   --folder FOLDER_PATH           # Folder to search for files
   --pattern FILE_PATTERN         # File search pattern (e.g., '*.csv')
   --output-folder OUTPUT_PATH    # Folder to save output files
 ```
 
+**Note**: If no `--config` or `--conversion` arguments are provided, the defaults will be used. You can also use the config file in `src/default_config.json` for your own custom setup.
+
 ### Example Commands
 
-#### Converting a CSV file to pipe-delimited format:
+#### Converting a CSV file to pipe-delimited format (using defaults):
 
 ```bash
-python src/main.py --config "samples/config/default_config.json" \
-                  --conversion "samples/conversions/sales_invoice_conv.yaml" \
+python src/main.py --file "samples/sources/sales_invoice.csv"
+```
+
+Or explicitly specify the conversion configuration:
+
+```bash
+python src/main.py --conversion "samples/conversions/sales_invoice_conv.yaml" \
                   --file "samples/sources/sales_invoice.csv"
 ```
 
 #### Converting an XML file to pipe-delimited format:
 
 ```bash
-python src/main.py --config "samples/config/default_config.json" \
-                  --conversion "samples/conversions/product_inventory_conv.yaml" \
+python src/main.py --conversion "samples/conversions/product_inventory_conv.yaml" \
                   --file "samples/sources/product_inventory.xml"
 ```
 
 #### Converting multiple files in a directory:
 
 ```bash
-python src/main.py --config "samples/config/default_config.json" \
-                  --conversion "samples/conversions/customer_order_conv.yaml" \
+python src/main.py --conversion "samples/conversions/customer_order_conv.yaml" \
                   --folder "samples/sources" \
                   --pattern "*.xlsx"
 ```

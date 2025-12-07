@@ -42,7 +42,7 @@
     "data_conversion": {
       "name": "Ted Sagan",
       "role": "convert",
-      "model": "gpt-5-mini",
+      "model": "gpt-4",
       "temperature": 0.2
     },
     "data_validator": [

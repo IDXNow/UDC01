@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 import time
 from datetime import datetime
-from validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags
+from validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags, validate_no_placeholders
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -29,13 +29,23 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0) -> dict:
         "request": request_instructions,
         "instructions": conversion_instructions,
     }
+
+    # Validate no placeholders remain
+    if not validate_no_placeholders(payload["request"]):
+        logging.error(f"Unreplaced placeholders in conversion request")
+        return {"error": "Unreplaced placeholders in request", "content": None}
+
     logging.debug(f"Payload for conversion agent {agent.get('name')}: {payload}")
     logging.info(f"Running conversion (attempt {run_index + 1})")
 
-    return run_agent(agent, payload)
+    response = run_agent(agent, payload)
+    if "error" in response:
+        logging.error(f"Conversion agent failed: {response['error']}")
+        return {"error": response["error"], "content": None}
+    return response
 
 ################################################################################
-# Orchestrating the full processing pipeline                                   #
+# Processing pipeline                                                          #
 ################################################################################
 
 def process_data(file_path: str, config: dict) -> dict:
@@ -97,8 +107,14 @@ def process_data(file_path: str, config: dict) -> dict:
             }
             break
 
+        # Log detailed validation errors before retrying
         retry_count += 1
         logging.warning(f"Validation failed (attempt {retry_count}/{max_retries}); retrying conversion…")
+        logging.warning(f"Validation results: {val_success_count}/3 validators approved")
+        for idx, result in enumerate(validation_results, 1):
+            status = "✓ VALID" if result.get("isvalid") else "✗ INVALID"
+            msg = result.get("invalid_msg", "No message provided")
+            logging.warning(f"  Validator {idx}: {status} - {msg}")
 
     # ------------------------------------------------------------------
     # 3. Wrap-up summary
@@ -118,7 +134,7 @@ def process_data(file_path: str, config: dict) -> dict:
 ################################################################################
 
 def load_file(file_path: str) -> str | None:
-    """Load file content as a *string*. Supports several text‑based formats"""
+    """Load file content as a *string*. Supports several text-based formats"""
     try:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -153,7 +169,6 @@ def save_output_data(output_data: str, file_path: str, config: dict):
 
         with open(out_path, "w", encoding="utf-8") as fh:
             fh.write(output_data)
-            #fh.writelines(output_data)
         logging.info(f"Output saved to {out_path}")
     except Exception as exc:
         logging.error(f"Error saving output data: {exc}")
