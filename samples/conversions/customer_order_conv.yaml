@@ -29,6 +29,7 @@ data_conversion_system_msg: |
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}] Transform the following Excel/CSV Customer Order data into pipe-delimited format.
+  <previous_conversion_notes>{<!--PreviousConversionNotes-->}</previous_conversion_notes>
 
   <data>{<!--Data-->}</data>
 

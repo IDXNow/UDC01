@@ -29,6 +29,7 @@ data_conversion_system_msg: |
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}] Transform the following HTML Job Listing data into CSV format.
+  <previous_conversion_notes>{<!--PreviousConversionNotes-->}</previous_conversion_notes>
 
   <data>{<!--Data-->}</data>
 

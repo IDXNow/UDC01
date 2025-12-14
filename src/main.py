@@ -144,15 +144,19 @@ def main():
     parser.add_argument("--folder", type=str, help="Folder to search for files", default=None)
     parser.add_argument("--pattern", type=str, help="File search pattern (e.g., '*.csv')", default=None)
     parser.add_argument("--output-folder", type=str, help="Folder to save output files", default=None)
-    parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml", help="path to conversion yaml")  
+    parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml", help="path to conversion yaml")
+    parser.add_argument("--parallel-agents", action="store_true", help="Run validator agents in parallel (faster for cloud APIs, not recommended for local LLMs)")  
 
     args = parser.parse_args()
 
     # Load configuration
     try:
-        config = load_config(args.config, args.conversion) 
+        config = load_config(args.config, args.conversion)
         if args.output_folder != None:
-            config["file_save"]["folder"] = args.output_folder 
+            config["file_save"]["folder"] = args.output_folder
+        if args.parallel_agents:
+            config["parallel_agents"] = True
+            logging.info("Parallel agent execution enabled via --parallel-agents flag") 
     except (FileNotFoundError, ValueError) as e:
         logging.error(f"Error loading configuration: {e}")
         return

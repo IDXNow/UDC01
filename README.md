@@ -24,9 +24,9 @@
 
 ## Introduction
 
-The **Universal Data Converter (UDC01)** is an **AI-driven data transformation framework**, designed to produce standardized output data formats using **structured, semi-structured, and unstructured** input data. It leverages **LLM-powered verification, validation and conversion** to **automate** data transformation, ensuring a consistent output format for enterprise integration.
+The **Universal Data Converter (UDC01)** is an **AI-driven data transformation framework**, designed to produce standardized output data formats using **structured, semi-structured, and unstructured** input data.  It leverages **LLM-powered verification, validation and conversion** to **automate** data transformation, ensuring a consistent output format for enterprise integration.
 
-UDC01 implements a robust validation system using a unique 2/3 majority voting mechanism, ensuring high accuracy and reliability in data transformations. The framework is particularly effective for organizations dealing with diverse data sources and formats that require standardization for downstream processing.
+UDC01 implements a robust validation system using a unique 2/3 majority voting mechanism, ensuring high accuracy and reliability in data transformations.  The framework is particularly effective for organizations dealing with diverse data sources and formats that require standardization for downstream processing.
 
 ---
 
@@ -87,7 +87,7 @@ openpyxl
 ```
 
 ### LLM Requirements
-The framework requires access to a compatible LLM API. The default configuration uses a local LLM server, but it can be configured to use other providers.
+The framework requires access to a compatible LLM API.  The default configuration uses a local LLM server, but it can be configured to use other providers.
 
 ---
 
@@ -127,9 +127,12 @@ python src/main.py
   --folder FOLDER_PATH           # Folder to search for files
   --pattern FILE_PATTERN         # File search pattern (e.g., '*.csv')
   --output-folder OUTPUT_PATH    # Folder to save output files
+  --parallel-agents              # Run validator agents in parallel (faster for cloud APIs)
 ```
 
-**Note**: If no `--config` or `--conversion` arguments are provided, the defaults will be used. You can also use the config file in `src/default_config.json` for your own custom setup.
+**Note**: If no `--config` or `--conversion` arguments are provided, the defaults will be used.  You can also use the config file in `src/default_config.json` for your own custom setup.
+
+**Performance Tip**: Use `--parallel-agents` when working with cloud API providers (OpenAI, Anthropic, etc.)
 
 ### Example Commands
 
@@ -159,6 +162,13 @@ python src/main.py --conversion "samples/conversions/product_inventory_conv.yaml
 python src/main.py --conversion "samples/conversions/customer_order_conv.yaml" \
                   --folder "samples/sources" \
                   --pattern "*.xlsx"
+```
+
+#### Using parallel execution for faster processing (cloud APIs):
+
+```bash
+python src/main.py --file "samples/sources/sales_invoice.csv" \
+                  --parallel-agents
 ```
 
 ---
@@ -236,7 +246,7 @@ As data engineering has evolved beyond traditional ETL workflows, Data Prompt En
 - Creating reusable prompt templates that ensure consistent processing across diverse data formats
 - Balancing deterministic validation with the flexibility of natural language processing
 
-UDC01 provides a structured framework where Data Prompt Engineers focus on crafting effective transformation instructions rather than writing procedural code for each new data format. The 2/3 verification and validation gates demonstrate how traditional ETL quality assurance principles can be reimagined for the era of LLM-driven transformations.
+UDC01 provides a structured framework where Data Prompt Engineers focus on crafting effective transformation instructions rather than writing procedural code for each new data format.  The 2/3 verification and validation gates demonstrate how traditional ETL quality assurance principles can be reimagined for the era of LLM-driven transformations.
 
 ---
 
@@ -249,6 +259,7 @@ The main configuration file (`default_config.json`) contains settings for:
 - Agent definitions and roles
 - File paths and patterns
 - Retry limits
+- Performance tuning (parallelism, timeouts, retries)
 
 Example:
 ```json
@@ -257,6 +268,11 @@ Example:
   "default_model": "granite-3.1-8b-instruct",
   "default_temperature": 0.3,
   "max_retries": 3,
+  "api_timeout": 600,
+  "api_retry_attempts": 3,
+  "api_retry_backoff": 2,
+  "parallel_agents": false,
+  "max_parallel_workers": 3,
   "file_save": {
     "folder": "output/",
     "file_extension": "txt"
@@ -273,6 +289,13 @@ Example:
   }
 }
 ```
+
+**Performance Configuration Options:**
+- `api_timeout`: Timeout in seconds for API calls (default: 600)
+- `api_retry_attempts`: Number of retry attempts for failed API calls (default: 3)
+- `api_retry_backoff`: Exponential backoff multiplier for retries (default: 2)
+- `parallel_agents`: Enable parallel execution of validators (default: false)
+- `max_parallel_workers`: Maximum concurrent agent threads (default: 3)
 
 ### Conversion Configuration (YAML)
 

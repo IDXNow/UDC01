@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Conversion logic                                                             #
 ################################################################################
 
-def perform_conversion(raw_data: str, config: dict, run_index: int = 0) -> dict:
+def perform_conversion(raw_data: str, config: dict, run_index: int = 0, prev_note: str = '') -> dict:
     """Calls the Data Conversion agent to transform *raw_data*."""
 
     agent = config["agents"]["data_conversion"]
@@ -21,8 +21,10 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0) -> dict:
         .replace("{<!--Data-->}", raw_data)
         .replace("{<!--RunIndex-->}", str(run_index))
         .replace("{<!--DateTime-->}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        .replace("{<!--PreviousConversionNotes-->}", prev_note)
     )
 
+    
     prepare_agent(agent, config)
 
     payload = {
@@ -58,6 +60,7 @@ def process_data(file_path: str, config: dict) -> dict:
     retry_count = 0
     conversion_result: dict = {}
     validation_results: list = []
+    prev_conv_msg = ""
 
     raw_data = load_file(file_path)
     if raw_data is None:
@@ -80,7 +83,7 @@ def process_data(file_path: str, config: dict) -> dict:
     # 2. Conversion + validation with retry logic
     # -----------------------------------------------------------------
     while retry_count < max_retries:
-        conv_response = perform_conversion(raw_data, config, retry_count)
+        conv_response = perform_conversion(raw_data, config, retry_count, prev_conv_msg)
         conversion_content = conv_response.get("content") if isinstance(conv_response, dict) else None
         output_data = parse_output(conversion_content) if conversion_content else None
 
@@ -106,6 +109,9 @@ def process_data(file_path: str, config: dict) -> dict:
                 "output_path": output_path if output_path else "save_failed",
             }
             break
+        else:
+            # append error note for next conversion attempt
+            prev_conv_msg = "\n\n".join([item.get("invalid_msg", "") for item in validation_results if not item.get("isvalid", True)])
 
         # Log detailed validation errors before retrying
         retry_count += 1

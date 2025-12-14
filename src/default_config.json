@@ -1,12 +1,14 @@
 {
   "api_base_url": "http://localhost:1234/",
-  "default_model": "granite-3.1-8b-instruct",
+  "default_model": "openai/gpt-oss-120b",
   "default_endpoint": "v1/chat/completions",
-  "default_temperature": 0.3,
+  "default_temperature": 1,
   "max_retries": 3,
   "api_timeout": 600,
   "api_retry_attempts": 3,
   "api_retry_backoff": 2,
+  "parallel_agents": false,
+  "max_parallel_workers": 2,
   "file_load": {
     "default_file": "samples/sources/sales_invoice.csv",
     "folder": "samples/sources/",

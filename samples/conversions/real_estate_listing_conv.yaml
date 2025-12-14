@@ -44,6 +44,8 @@ data_conversion_system_msg: |
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}] Transform the following HTML Real Estate Listing data into structured JSON format.
 
+  <previous_conversion_notes>{<!--PreviousConversionNotes-->}</previous_conversion_notes>
+
   <data>{<!--Data-->}</data>
 
   Requirements:
