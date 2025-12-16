@@ -1,16 +1,19 @@
 {
+  "_comment": "Example configuration showing how to use multiple cloud providers",
+
   "api_base_url": "http://localhost:1234/",
-  "default_provider": "local",
-  "default_model": "openai/gpt-oss-20b",
+  "default_provider": "google",
+  "default_model": "gemini-2.5-flash-lite",
   "default_endpoint": "v1/chat/completions",
   "default_temperature": 1,
   "max_retries": 3,
   "api_timeout": 600,
   "api_retry_attempts": 3,
   "api_retry_backoff": 2,
-  "parallel_agents": true,
+  "parallel_agents": false,
   "max_parallel_workers": 2,
-  "log_details": false,
+  "log_details": true,
+
   "providers": {
     "local": {
       "base_url": "http://localhost:1234",
@@ -42,11 +45,14 @@
       "request_format": "google"
     }
   },
+
   "api_keys": {
+    "_comment": "API keys loaded from environment variables (recommended)",
     "openai": "${OPENAI_API_KEY}",
     "anthropic": "${ANTHROPIC_API_KEY}",
     "google": "${GOOGLE_API_KEY}"
   },
+
   "file_load": {
     "default_file": "samples/sources/sales_invoice.csv",
     "folder": "samples/sources/",
@@ -56,48 +62,62 @@
     "folder": "output/",
     "file_extension": "txt"
   },
-  "log_file":{
+  "log_file": {
     "folder": "logs/",
     "file_extension": "log"
   },
+
   "agents": {
     "data_verifier": [
       {
+        "_comment": "First verifier uses local model (default)",
         "name": "Jane Dirac",
         "role": "verify",
         "instructions": "data_verification_system_msg",
         "request_instructions": "data_verification_request_msg"
       },
       {
+        "_comment": "Second verifier uses OpenAI GPT-4o-mini for fast verification",
         "name": "Chris Einstein",
         "role": "verify",
+        "provider": "openai",
+        "model": "gpt-5-mini",
+        "temperature": 0.1,
         "instructions": "data_verification_system_msg",
         "request_instructions": "data_verification_request_msg"
       },
       {
+        "_comment": "Third verifier uses Google Gemini",
         "name": "Nathan Fourier",
         "role": "verify",
+        "provider": "google",
+        "model": "gemini-2.5-flash-lite",
         "temperature": 1,
         "instructions": "data_verification_system_msg",
         "request_instructions": "data_verification_request_msg"
       }
     ],
     "data_conversion": {
+      "_comment": "Conversion uses Anthropic Claude 3.5 Sonnet for high-quality output",
       "name": "Ted Sagan",
       "role": "convert",
       "provider": "anthropic",
-      "model": "claude-haiku-4-5",
-      "temperature": 1.0
+      "model": "claude-sonnet-4-5",
+      "temperature": 1
     },
     "data_validator": [
       {
+        "_comment": "First validator uses OpenAI GPT-4o for thorough validation",
         "name": "Charles Turing",
         "role": "validate",
+        "provider": "openai",
+        "model": "gpt-5-nano",
+        "temperature": 1,
         "instructions": "data_validation_system_msg",
         "request_instructions": "data_validation_request_msg"
-        
       },
       {
+        "_comment": "Second validator uses local model",
         "name": "Macy Hopper",
         "role": "validate",
         "temperature": 1,
@@ -105,20 +125,22 @@
         "request_instructions": "data_validation_request_msg"
       },
       {
+        "_comment": "Third validator uses Anthropic Claude 3.5 Haiku (fast)",
         "name": "Vanessa Lovelace",
         "role": "validate",
+        "provider": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "temperature": 1,
         "instructions": "data_validation_system_msg",
         "request_instructions": "data_validation_request_msg"
       }
     ],
-    
     "log_message_router": {
       "name": "Bob Newton",
       "role": "route",
       "instructions": "log_message_routing_system_msg",
       "request_instructions": "log_message_routing_request_msg"
     },
-
     "message_composer": {
       "name": "Message Composer",
       "role": "compose",
@@ -131,7 +153,6 @@
         "role": "validate",
         "instructions": "message_validation_system_msg",
         "request_instructions": "message_validation_request_msg"
-        
       },
       {
         "name": "Lisa Bohr",
@@ -147,6 +168,5 @@
         "request_instructions": "data_validation_request_msg"
       }
     ]
-    
   }
 }

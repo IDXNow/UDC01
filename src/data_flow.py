@@ -5,8 +5,6 @@ import time
 from datetime import datetime
 from validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags, validate_no_placeholders
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 ################################################################################
 # Conversion logic                                                             #
 ################################################################################

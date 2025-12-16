@@ -5,8 +5,6 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 ################################################################################
 # Helper functions                                                             #
 ################################################################################
@@ -19,10 +17,117 @@ def validate_no_placeholders(text: str) -> bool:
             return False
     return True
 
+def get_provider(agent_config: dict) -> str:
+    """Determines the provider for an agent (explicit or default)."""
+    return agent_config.get("provider", agent_config.get("default_provider", "local"))
+
+def build_provider_url(provider_config: dict, model: str) -> str:
+    """Builds the full API URL for the provider."""
+    base_url = provider_config["base_url"]
+    endpoint = provider_config["endpoint"]
+
+    # Google requires model name in URL path
+    if "{model}" in endpoint:
+        model_name = model.split("/")[-1] if "/" in model else model
+        endpoint = endpoint.replace("{model}", model_name)
+
+    # Ensure no double slashes
+    if base_url.endswith("/"):
+        base_url = base_url[:-1]
+    if not endpoint.startswith("/"):
+        endpoint = "/" + endpoint
+
+    return base_url + endpoint
+
+def build_provider_headers(provider: str, provider_config: dict, api_keys: dict) -> dict:
+    """Builds authentication headers for the provider."""
+    headers = {"Content-Type": "application/json"}
+
+    auth_header = provider_config.get("auth_header")
+    if auth_header:
+        api_key = api_keys.get(provider, "")
+        if api_key:
+            auth_prefix = provider_config.get("auth_prefix", "")
+            if auth_prefix:
+                headers[auth_header] = f"{auth_prefix} {api_key}"
+            else:
+                headers[auth_header] = api_key
+
+            # Debug logging (show first/last 4 chars of key for security)
+            key_preview = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+            logging.debug(f"Auth header for '{provider}': {auth_header}={auth_prefix} {key_preview}".strip())
+        else:
+            logging.warning(f"No API key found for provider '{provider}' - request may fail")
+
+    # Anthropic-specific version header
+    if "version_header" in provider_config:
+        headers[provider_config["version_header"]] = provider_config["version"]
+
+    return headers
+
+def format_request_for_provider(provider_config: dict, model: str,
+                                 temperature: float, messages: list) -> dict:
+    """Formats the request payload for specific provider."""
+    request_format = provider_config.get("request_format", "openai")
+    model_name = model.split("/")[-1] if "/" in model else model
+
+    if request_format == "anthropic":
+        # Anthropic uses different format: separate system message from messages array
+        system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
+        user_messages = [m for m in messages if m["role"] != "system"]
+        return {
+            "model": model_name,
+            "max_tokens": 10000,
+            "temperature": temperature,
+            "system": system_msg,
+            "messages": user_messages
+        }
+    elif request_format == "google":
+        # Google Gemini uses different format: contents with parts
+        contents = []
+        for msg in messages:
+            role = "user" if msg["role"] in ["user", "system"] else "model"
+            contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+        return {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": 8192
+            }
+        }
+    else:
+        # OpenAI format (default for local and openai providers)
+        return {
+            "model": model_name,
+            "temperature": temperature,
+            "stream": False,
+            "messages": messages
+        }
+
+def parse_provider_response(provider_config: dict, response_data: dict) -> dict:
+    """Parses provider-specific response to standard format."""
+    request_format = provider_config.get("request_format", "openai")
+
+    if request_format == "anthropic":
+        return {
+            "role": "assistant",
+            "content": response_data["content"][0]["text"]
+        }
+    elif request_format == "google":
+        return {
+            "role": "assistant",
+            "content": response_data["candidates"][0]["content"]["parts"][0]["text"]
+        }
+    else:
+        # OpenAI format (default)
+        return response_data["choices"][0]["message"]
+
 def prepare_agent(agent_cfg: dict, config: dict):
     """Populate common runtime attributes onto an agent configuration."""
     agent_cfg["base_url"] = config["api_base_url"]
     agent_cfg["endpoint"] = config["default_endpoint"]
+    agent_cfg["default_model"] = config.get("default_model", "")
+    agent_cfg["default_temperature"] = config.get("default_temperature", "1")
 
 
 def run_2of3_consensus(agents: list, payload_builder, config: dict, agent_type: str) -> list:
@@ -49,13 +154,16 @@ def run_2of3_consensus(agents: list, payload_builder, config: dict, agent_type: 
 def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type: str) -> list:
     """Sequential execution with early-exit optimization (original behavior)."""
     results = []
-    logging.info(f"Running {agent_type} agents (sequential)")
+    
+    if config.get("log_details", False):
+        logging.info(f"Running {agent_type} agents (sequential)")
 
     for idx, agent in enumerate(agents):
         # Early exit check: if first two agents agree, skip the third
         if idx == 2 and len(results) == 2:
             if results[0]["isvalid"] == results[1]["isvalid"]:
-                logging.info(f"Early exit: first two {agent_type} agents agree, skipping third agent")
+                if config.get("log_details", False):
+                    logging.info(f"Early exit: first two {agent_type} agents agree, skipping third agent")
                 break  # Consensus already achieved
 
         prepare_agent(agent, config)
@@ -67,7 +175,8 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
             results.append({"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
             continue
 
-        logging.debug(f"Payload for {agent_type} agent {agent.get('name')}: {payload}")
+        if config.get("log_details", False):
+            logging.debug(f"Payload for {agent_type} agent {agent.get('name')}: {payload}")
 
         message = run_agent(agent, payload)
         if "error" in message:
@@ -79,7 +188,8 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
 
         # After the second agent, check for early consensus
         if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
-            logging.info(f"Early exit: first two {agent_type} agents agree")
+            if config.get("log_details", False):
+                logging.info(f"Early exit: first two {agent_type} agents agree")
             break  # Consensus (both True or both False)
 
     return results
@@ -94,10 +204,10 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
     2. If they agree → Done! (consensus reached)
     3. If they disagree → Launch 3rd agent as tie-breaker
 
-    This saves API calls 70-80% of the time while maintaining parallelism benefits.
     """
     max_workers = config.get("max_parallel_workers", 3)
-    logging.info(f"Running {agent_type} agents (parallel mode)")
+    if config.get("log_details", False):
+        logging.info(f"Running {agent_type} agents (parallel mode)")
 
     def run_single_agent(idx, agent):
         """Execute a single agent and return (index, result)."""
@@ -109,7 +219,8 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
             logging.error(f"Unreplaced placeholders in {agent_type} request for agent {agent.get('name')}")
             return (idx, {"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
 
-        logging.debug(f"Payload for {agent_type} agent {agent.get('name')}: {payload}")
+        if config.get("log_details", False):
+            logging.debug(f"Payload for {agent_type} agent {agent.get('name')}: {payload}")
 
         message = run_agent(agent, payload)
         if "error" in message:
@@ -135,11 +246,13 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
 
     # Phase 2: Check if first 2 agents agree
     if result_0["isvalid"] == result_1["isvalid"]:
-        logging.info(f"Early consensus: first 2 {agent_type} agents agree ({result_0['isvalid']}), skipping 3rd agent")
+        if config.get("log_details", False):
+            logging.info(f"Early consensus: first 2 {agent_type} agents agree ({result_0['isvalid']}), skipping 3rd agent")
         return results  # Consensus reached, no need for 3rd agent
 
     # Phase 3: Disagreement - run 3rd agent as tie-breaker
-    logging.info(f"First 2 {agent_type} agents disagree, running 3rd agent as tie-breaker")
+    if config.get("log_details", False):
+        logging.info(f"First 2 {agent_type} agents disagree, running 3rd agent as tie-breaker")
     idx_2, result_2 = run_single_agent(2, agents[2])
     results.append(result_2)
 
@@ -189,11 +302,29 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     backoff = agent_config.get("retry_backoff", 2)
     timeout = agent_config.get("timeout", 600)
 
-    url = agent_config["base_url"] + agent_config["endpoint"]
-    headers = {"Content-Type": "application/json"}
-
     model = agent_config.get("model", agent_config["default_model"])
     temperature = agent_config.get("temperature", agent_config["default_temperature"])
+
+    # Determine provider and get provider configuration
+    provider = get_provider(agent_config)
+    providers = agent_config.get("providers", {})
+
+    if provider not in providers:
+        logging.error(f"Provider '{provider}' not found in configuration")
+        return {
+            "error": f"Provider '{provider}' not configured",
+            "_metadata": {
+                "agent_name": agent_config.get("name"),
+                "failed": True
+            }
+        }
+
+    provider_config = providers[provider]
+    api_keys = agent_config.get("api_keys", {})
+
+    # Build provider-specific URL and headers
+    url = build_provider_url(provider_config, model)
+    headers = build_provider_headers(provider, provider_config, api_keys)
 
     # Create the messages structure.
     messages = []
@@ -203,14 +334,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     user_query = {"role":"user", "content":payload.get("request")}
     messages.append(user_query)
 
-    # create the json payload
-    json_payload = {
-        "model": model,
-        "temperature": temperature,
-        "max_tokens": -1,
-        "stream": False,
-        "messages": messages
-    }
+    # Create provider-specific request payload
+    json_payload = format_request_for_provider(provider_config, model, temperature, messages)
 
     # Retry loop with exponential backoff
     last_error = None
@@ -219,7 +344,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
             response = requests.post(url, json=json_payload, headers=headers, timeout=timeout)
             response.raise_for_status()  # Raise HTTPError for bad responses
 
-            result = response.json()["choices"][0]["message"]
+            # Parse provider-specific response
+            result = parse_provider_response(provider_config, response.json())
 
             # Add performance metadata
             elapsed_time = time.time() - start_time
@@ -229,23 +355,46 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
                 "elapsed_time": round(elapsed_time, 2),
                 "model": model,
                 "temperature": temperature,
+                "provider": provider,
                 "retry_count": attempt
             }
-            logging.info(f"Agent {agent_config.get('name')} completed in {elapsed_time:.2f}s (attempt {attempt + 1}/{max_retries})")
+            
+            logging.info(f"Agent {agent_config.get('name')} ({provider}/{model}) completed in {elapsed_time:.2f}s (attempt {attempt + 1}/{max_retries})")
 
             return result
 
         except requests.exceptions.RequestException as e:
             last_error = e
+            # Try to get detailed error message from response
+            error_detail = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_json = e.response.json()
+                    if 'error' in error_json:
+                        # Format the error nicely
+                        err = error_json['error']
+                        if isinstance(err, dict):
+                            msg = err.get('message', err)
+                            error_type = err.get('type', 'unknown')
+                            error_code = err.get('code', '')
+                            error_detail = f"{e}\n  Error Type: {error_type}\n  Message: {msg}"
+                            if error_code:
+                                error_detail += f"\n  Code: {error_code}"
+                        else:
+                            error_detail = f"{e} - Error: {err}"
+                except Exception:
+                    # If JSON parsing fails, show raw response
+                    error_detail = f"{e}\n  Raw Response: {e.response.text[:500]}"
+
             if attempt < max_retries - 1:
                 wait_time = backoff ** attempt
                 logging.warning(f"Agent {agent_config.get('name')} failed (attempt {attempt + 1}/{max_retries}), "
-                              f"retrying in {wait_time}s: {e}")
+                              f"retrying in {wait_time}s: {error_detail}")
                 time.sleep(wait_time)
             else:
                 # Final attempt failed
                 elapsed_time = time.time() - start_time
-                logging.error(f"Agent {agent_config.get('name')} failed after {max_retries} attempts ({elapsed_time:.2f}s): {e}")
+                logging.error(f"Agent {agent_config.get('name')} failed after {max_retries} attempts ({elapsed_time:.2f}s): {error_detail}")
 
     # All retries exhausted
     elapsed_time = time.time() - start_time

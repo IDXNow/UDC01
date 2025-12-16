@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-from data_flow import process_data
 import glob
 import logging
 import yaml
@@ -9,7 +8,42 @@ from datetime import datetime
 import uuid
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Custom handler to capture log messages
+class LogCaptureHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.log_records = []
+
+    def emit(self, record):
+        log_entry = {
+            "timestamp": datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S'),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno
+        }
+        self.log_records.append(log_entry)
+
+    def get_logs(self):
+        return self.log_records.copy()
+
+    def clear_logs(self):
+        self.log_records.clear()
+
+# Set up logging with console output and optional capture BEFORE importing other modules
+log_capture_handler = LogCaptureHandler()
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Console output
+        log_capture_handler  # Capture for log files
+    ]
+)
+
+# Import after logging is configured
+from data_flow import process_data
 
 def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
     """Validates that YAML contains all required message components."""
@@ -72,11 +106,47 @@ def load_config(config_path: str, conversion_path: str) -> dict:
         with open(conversion_path, "r") as y:  #load the yaml file
             yaml_data = yaml.safe_load(y)
 
+
         validate_conversion_yaml(yaml_data, conversion_path)
         config.update(yaml_data)
 
         # Validate agent configuration structure
         validate_agent_config(config)
+
+        # Process API keys - replace ${ENV_VAR} placeholders with environment variables
+        api_keys = config.get("api_keys", {})
+        resolved_api_keys = {}
+        for provider, key_value in api_keys.items():
+            if isinstance(key_value, str) and key_value.startswith("${") and key_value.endswith("}"):
+                # Extract environment variable name
+                env_var_name = key_value[2:-1]
+                env_value = os.getenv(env_var_name)
+                if env_value:
+                    # Strip whitespace/newlines from environment variable
+                    resolved_api_keys[provider] = env_value.strip()
+                    if config.get("log_details", False):
+                        logging.info(f"Loaded API key for '{provider}' from environment variable {env_var_name}")
+                else:
+                    if config.get("log_details", False):
+                        logging.warning(f"Environment variable {env_var_name} not set for provider '{provider}'")
+                    resolved_api_keys[provider] = ""
+            else:
+                # Use value directly from config (for fast usage), strip whitespace
+                resolved_api_keys[provider] = key_value.strip() if isinstance(key_value, str) else key_value
+
+        config["api_keys"] = resolved_api_keys
+
+        # Validate providers configuration exists
+        if "providers" not in config:
+            logging.warning("No 'providers' section in config - using legacy single-endpoint mode")
+            config["providers"] = {
+                "local": {
+                    "base_url": config.get("api_base_url", "http://localhost:1235"),
+                    "endpoint": config.get("default_endpoint", "v1/chat/completions"),
+                    "auth_header": None,
+                    "request_format": "openai"
+                }
+            }
 
         # Move global attributes to the agents
         for agent_type in config["agents"]:
@@ -84,25 +154,31 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                 for agent in config["agents"][agent_type]:
                     agent["base_url"] = config["api_base_url"]
                     agent["default_model"] = config["default_model"]
+                    agent["default_provider"] = config.get("default_provider", "local")
                     agent["default_temperature"] = config["default_temperature"]
                     agent["default_endpoint"] = config["default_endpoint"]
                     agent["timeout"] = config.get("api_timeout", 600)
                     agent["retry_attempts"] = config.get("api_retry_attempts", 3)
                     agent["retry_backoff"] = config.get("api_retry_backoff", 2)
+                    agent["providers"] = config["providers"]
+                    agent["api_keys"] = config["api_keys"]
             else:
                 agent = config["agents"][agent_type]
                 agent["base_url"] = config["api_base_url"]
                 agent["default_model"] = config["default_model"]
+                agent["default_provider"] = config.get("default_provider", "local")
                 agent["default_temperature"] = config["default_temperature"]
                 agent["default_endpoint"] = config["default_endpoint"]
                 agent["timeout"] = config.get("api_timeout", 600)
                 agent["retry_attempts"] = config.get("api_retry_attempts", 3)
                 agent["retry_backoff"] = config.get("api_retry_backoff", 2)
+                agent["providers"] = config["providers"]
+                agent["api_keys"] = config["api_keys"]
 
         return config
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON format in config file: {e}")
-    except yaml.YAMLError as e: 
+    except yaml.YAMLError as e:
         raise ValueError(f"Invalid YAML format in config file: {e}")
 
 
@@ -127,11 +203,19 @@ def save_logs(log_data: dict, config: dict):
         log_filename = f"{timestamp}_{unique_id}.{log_extension}"
         log_filepath = os.path.join(log_folder, log_filename)
 
+        # If log_details is enabled, include captured logging messages
+        if config.get("log_details", False):
+            log_data["system_logs"] = log_capture_handler.get_logs()
+
         # Save the log data to the file
         with open(log_filepath, "w") as log_file:
             json.dump(log_data, log_file, indent=4)
 
         logging.info(f"Log data saved to: {log_filepath}")
+
+        # Clear captured logs after saving to avoid accumulation across multiple files
+        if config.get("log_details", False):
+            log_capture_handler.clear_logs()
 
     except (KeyError, OSError) as e:
         logging.error(f"Error saving log data: {e}")
@@ -157,6 +241,7 @@ def main():
         if args.parallel_agents:
             config["parallel_agents"] = True
             logging.info("Parallel agent execution enabled via --parallel-agents flag") 
+
     except (FileNotFoundError, ValueError) as e:
         logging.error(f"Error loading configuration: {e}")
         return

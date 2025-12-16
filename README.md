@@ -17,6 +17,12 @@
   - [Example Commands](#example-commands)
 - [Sample Conversions](#sample-conversions)
 - [Validation Mechanism & Evolution](#validation-mechanism--evolution)
+- [Cloud Provider Configuration](#cloud-provider-configuration)
+  - [Setting Up API Keys](#setting-up-api-keys)
+  - [Provider Configuration](#provider-configuration)
+  - [Per-Agent Provider Selection](#per-agent-provider-selection)
+  - [Performance Optimization for Cloud APIs](#performance-optimization-for-cloud-apis)
+  - [Detailed Logging](#detailed-logging)
 - [Configuration Files](#configuration-files)
 - [License](#license)
 - [Contact & Community](#contact--community)
@@ -34,10 +40,13 @@ UDC01 implements a robust validation system using a unique 2/3 majority voting m
 
 - **Intelligent Data Processing**: Advanced LLM-based transformation pipeline for handling structured, semi-structured, and unstructured input data
 - **Multi-Stage Validation**: Implements a 2/3 voting mechanism across multiple LLM agents to ensure transformation accuracy
+- **Multi-Provider Support**: Works with local models, OpenAI (GPT), Anthropic (Claude), and Google (Gemini)
+- **Parallel Execution**: Concurrent agent execution for faster processing with cloud APIs
 - **Automated Workflow**: Complete pipeline from data intake to output generation with minimal human intervention
 - **Early-Exit Consensus**: Optimized validation with early-exit when 2/3 consensus is reached
-- **Retry Mechanism**: Configurable retry attempts for failed conversions
+- **Retry Mechanism**: Configurable retry attempts for failed conversions with exponential backoff
 - **Agent Identification System**: Unique identifiers and human-readable names for each LLM agent in the process
+- **Detailed Logging**: Optional comprehensive logging with error tracking and performance metrics
 
 ---
 
@@ -87,7 +96,18 @@ openpyxl
 ```
 
 ### LLM Requirements
-The framework requires access to a compatible LLM API.  The default configuration uses a local LLM server, but it can be configured to use other providers.
+The framework supports multiple LLM providers:
+
+**Local Models:**
+- Local LLM server (default: http://localhost:1234/)
+- Any OpenAI-compatible API endpoint
+
+**Cloud Providers:**
+- **OpenAI**: GPT-5, GPT-5-mini, GPT-5-nano, GPT-5.1
+- **Anthropic**: Claude 4.5 Sonnet, Claude 4.5 Haiku, Claude 4.5 Opus
+- **Google**: Gemini 2.5 Flash, Gemini 2.5 Flash-Lite, Gemini 2.5 Pro, Gemini 3 Pro
+
+**Note**: Cloud providers require API keys set as environment variables. See [Cloud Provider Configuration](#cloud-provider-configuration) for details.
 
 ---
 
@@ -107,9 +127,24 @@ The framework requires access to a compatible LLM API.  The default configuratio
    ```bash
    pip install -r requirements.txt
    ```
-   
 
-3. Ensure your LLM API is accessible (default is http://localhost:1234/).
+3. **For Local Models**: Ensure your local LLM API is accessible (default: http://localhost:1234/)
+
+4. **For Cloud Providers**: Set up API keys as environment variables:
+   ```powershell
+   # Windows PowerShell
+   $env:OPENAI_API_KEY="sk-proj-..."
+   $env:ANTHROPIC_API_KEY="sk-ant-..."
+   $env:GOOGLE_API_KEY="..."
+   ```
+   ```bash
+   # Linux/Mac
+   export OPENAI_API_KEY="sk-proj-..."
+   export ANTHROPIC_API_KEY="sk-ant-..."
+   export GOOGLE_API_KEY="..."
+   ```
+
+   See [Cloud Provider Configuration](#cloud-provider-configuration) for detailed setup instructions.
 
 ---
 
@@ -170,6 +205,21 @@ python src/main.py --conversion "samples/conversions/customer_order_conv.yaml" \
 python src/main.py --file "samples/sources/sales_invoice.csv" \
                   --parallel-agents
 ```
+
+#### Using cloud providers with custom configuration:
+
+```bash
+# Set up your API keys first
+set ANTHROPIC_API_KEY=sk-ant-...
+set OPENAI_API_KEY=sk-proj-...
+
+# Use the cloud example configuration
+python src/main.py --config "samples/config/cloud_example_config.json" \
+                  --file "samples/sources/sales_invoice.csv" \
+                  --parallel-agents
+```
+
+This will use Claude for conversion and GPT/Gemini for validation, running validators in parallel for maximum speed.
 
 ---
 
@@ -239,7 +289,7 @@ The 2/3 majority validation mechanism achieves substantially higher accuracy tha
 The framework's validation design reconciles two competing realities: LLMs' inherent variability and enterprise systems' need for consistent, predictable outputs.
 
 ### From ETL Developer to Data Prompt Engineer
-As data engineering has evolved beyond traditional ETL workflows, Data Prompt Engineering represents a natural progression in the field. This emerging specialization involves:
+As data engineering has evolved beyond traditional ETL workflows, Data Prompt Engineering represents a natural progression in the field.  This emerging specialization involves:
 
 - Crafting precise, robust prompts that guide LLMs in performing reliable data transformations
 - Implementing validation gates and quality checks specifically designed for LLM-driven processes
@@ -250,52 +300,215 @@ UDC01 provides a structured framework where Data Prompt Engineers focus on craft
 
 ---
 
+## Cloud Provider Configuration
+
+UDC01 supports multiple cloud-based LLM providers, allowing you to mix models based on your needs.  Each agent can use a different provider to optimize cost and performance.
+
+### Setting Up API Keys
+
+Cloud providers require API keys, which should be stored as environment variables for security:
+
+**Windows (PowerShell):**
+```powershell
+$env:OPENAI_API_KEY="sk-proj-..."
+$env:ANTHROPIC_API_KEY="sk-ant-..."
+$env:GOOGLE_API_KEY="..."
+```
+
+**Linux/Mac:**
+```bash
+export OPENAI_API_KEY="sk-proj-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GOOGLE_API_KEY="..."
+```
+
+**Important**: You should not commit API keys to version control.  The configuration file uses environment variable placeholders like `${OPENAI_API_KEY}` which are automatically resolved at runtime.
+
+### Provider Configuration
+
+The `default_config.json` includes provider definitions for all supported services:
+
+```json
+{
+  "default_provider": "local",
+  "providers": {
+    "local": {
+      "base_url": "http://localhost:1235",
+      "endpoint": "v1/chat/completions",
+      "request_format": "openai"
+    },
+    "openai": {
+      "base_url": "https://api.openai.com",
+      "endpoint": "v1/chat/completions",
+      "auth_header": "Authorization",
+      "auth_prefix": "Bearer"
+    },
+    "anthropic": {
+      "base_url": "https://api.anthropic.com",
+      "endpoint": "v1/messages",
+      "auth_header": "x-api-key"
+    },
+    "google": {
+      "base_url": "https://generativelanguage.googleapis.com",
+      "endpoint": "v1beta/models/{model}:generateContent",
+      "auth_header": "x-goog-api-key"
+    }
+  }
+}
+```
+
+### Per-Agent Provider Selection
+
+You can specify which provider each agent can use:
+
+```json
+{
+  "agents": {
+    "data_conversion": {
+      "name": "Ted Sagan",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "temperature": 1
+    },
+    "data_verifier": [
+      {
+        "name": "Jane Dirac",
+        "provider": "openai",
+        "model": "gpt-5-mini"
+      },
+      {
+        "name": "Chris Einstein"
+        // Uses default_provider (local)
+      }
+    ]
+  }
+}
+```
+
+### Performance Optimization for Cloud APIs
+
+When using cloud providers, enable parallel execution for faster processing:
+
+```bash
+python src/main.py --file "samples/sources/sales_invoice.csv" --parallel-agents
+```
+
+Or set in configuration:
+```json
+{
+  "parallel_agents": true,
+  "max_parallel_workers": 2
+}
+```
+
+### Detailed Logging
+
+Enable comprehensive logging to track API calls, errors, and performance:
+
+```json
+{
+  "log_details": true
+}
+```
+
+When enabled, log files will include:
+- All INFO, WARNING, and ERROR messages
+- API authentication details (with masked keys)
+- Detailed error responses from providers
+- Performance metrics for each agent
+
+For complete cloud provider documentation, see [CLOUD_PROVIDERS.md](CLOUD_PROVIDERS.md).
+
+---
+
 ## Configuration Files
 
 ### Main Configuration (JSON)
 
 The main configuration file (`default_config.json`) contains settings for:
 - API endpoints and model parameters
-- Agent definitions and roles
+- Cloud provider configurations
+- Agent definitions and roles with per-agent provider selection
 - File paths and patterns
-- Retry limits
+- Retry limits and timeout settings
 - Performance tuning (parallelism, timeouts, retries)
+- Logging configuration
 
 Example:
 ```json
 {
   "api_base_url": "http://localhost:1234/",
+  "default_provider": "local",
   "default_model": "granite-3.1-8b-instruct",
-  "default_temperature": 0.3,
+  "default_temperature": 1,
   "max_retries": 3,
   "api_timeout": 600,
   "api_retry_attempts": 3,
   "api_retry_backoff": 2,
-  "parallel_agents": false,
-  "max_parallel_workers": 3,
+  "parallel_agents": true,
+  "max_parallel_workers": 2,
+  "log_details": true,
+
+  "providers": {
+    "local": {
+      "base_url": "http://localhost:1234",
+      "endpoint": "v1/chat/completions",
+      "request_format": "openai"
+    },
+    "openai": {
+      "base_url": "https://api.openai.com",
+      "endpoint": "v1/chat/completions",
+      "auth_header": "Authorization",
+      "auth_prefix": "Bearer"
+    }
+  },
+
+  "api_keys": {
+    "openai": "${OPENAI_API_KEY}",
+    "anthropic": "${ANTHROPIC_API_KEY}",
+    "google": "${GOOGLE_API_KEY}"
+  },
+
   "file_save": {
     "folder": "output/",
     "file_extension": "txt"
   },
+
   "agents": {
     "data_verifier": [
       {
-        "name": "Julie Euler",
+        "name": "Jane Dirac",
         "role": "verify",
         "instructions": "data_verification_system_msg"
-      },
-      // Additional agents...
-    ]
+      }
+    ],
+    "data_conversion": {
+      "name": "Ted Sagan",
+      "role": "convert",
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "temperature": 0.2
+    }
   }
 }
 ```
 
-**Performance Configuration Options:**
+**Configuration Options:**
+
+*Provider Settings:*
+- `default_provider`: Default LLM provider for all agents (default: "local")
+- `providers`: Provider-specific API configurations
+- `api_keys`: API keys with environment variable placeholders
+
+*Performance Settings:*
 - `api_timeout`: Timeout in seconds for API calls (default: 600)
 - `api_retry_attempts`: Number of retry attempts for failed API calls (default: 3)
 - `api_retry_backoff`: Exponential backoff multiplier for retries (default: 2)
 - `parallel_agents`: Enable parallel execution of validators (default: false)
-- `max_parallel_workers`: Maximum concurrent agent threads (default: 3)
+- `max_parallel_workers`: Maximum concurrent agent threads (default: 2)
+
+*Logging Settings:*
+- `log_details`: Include detailed system logs in output files (default: false)
 
 ### Conversion Configuration (YAML)
 
