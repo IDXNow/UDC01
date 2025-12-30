@@ -12,7 +12,7 @@
   "log_details": true,
   "providers": {
     "local": {
-      "base_url": "http://localhost:1235",
+      "base_url": "http://localhost:1234",
       "endpoint": "v1/chat/completions",
       "auth_header": null,
       "request_format": "openai"
