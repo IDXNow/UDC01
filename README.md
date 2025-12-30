@@ -156,7 +156,7 @@ The Universal Data Converter is designed to be used from the command line, with 
 
 ```bash
 python src/main.py
-  --config CONFIG_PATH           # Path to main configuration file (default: samples/config/default_config.json)
+  --config CONFIG_PATH           # Path to main configuration file (default: src/default_config.json)
   --conversion CONVERSION_PATH   # Path to conversion YAML (default: samples/conversions/sales_invoice_conv.yaml)
   --file FILE_PATH               # Specific file to load
   --folder FOLDER_PATH           # Folder to search for files
@@ -437,7 +437,6 @@ The main configuration file (`default_config.json`) contains settings for:
 Example:
 ```json
 {
-  "api_base_url": "http://localhost:1234/",
   "default_provider": "local",
   "default_model": "granite-3.1-8b-instruct",
   "default_temperature": 1,

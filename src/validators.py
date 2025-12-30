@@ -124,7 +124,6 @@ def parse_provider_response(provider_config: dict, response_data: dict) -> dict:
 
 def prepare_agent(agent_cfg: dict, config: dict):
     """Populate common runtime attributes onto an agent configuration."""
-    agent_cfg["base_url"] = config["api_base_url"]
     agent_cfg["endpoint"] = config["default_endpoint"]
     agent_cfg["default_model"] = config.get("default_model", "")
     agent_cfg["default_temperature"] = config.get("default_temperature", "1")

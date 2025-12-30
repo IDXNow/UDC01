@@ -141,7 +141,7 @@ def load_config(config_path: str, conversion_path: str) -> dict:
             logging.warning("No 'providers' section in config - using legacy single-endpoint mode")
             config["providers"] = {
                 "local": {
-                    "base_url": config.get("api_base_url", "http://localhost:1235"),
+                    "base_url": "http://localhost:1234",
                     "endpoint": config.get("default_endpoint", "v1/chat/completions"),
                     "auth_header": None,
                     "request_format": "openai"
@@ -152,7 +152,6 @@ def load_config(config_path: str, conversion_path: str) -> dict:
         for agent_type in config["agents"]:
             if type(config["agents"][agent_type]) is list:
                 for agent in config["agents"][agent_type]:
-                    agent["base_url"] = config["api_base_url"]
                     agent["default_model"] = config["default_model"]
                     agent["default_provider"] = config.get("default_provider", "local")
                     agent["default_temperature"] = config["default_temperature"]
@@ -164,7 +163,6 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                     agent["api_keys"] = config["api_keys"]
             else:
                 agent = config["agents"][agent_type]
-                agent["base_url"] = config["api_base_url"]
                 agent["default_model"] = config["default_model"]
                 agent["default_provider"] = config.get("default_provider", "local")
                 agent["default_temperature"] = config["default_temperature"]
@@ -223,7 +221,7 @@ def save_logs(log_data: dict, config: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Universal Data Converter")
-    parser.add_argument("--config", type=str, default="samples/config/default_config.json", help="Path to main configuration file")
+    parser.add_argument("--config", type=str, default="src/default_config.json", help="Path to main configuration file")
     parser.add_argument("--file", type=str, help="Specific file to load", default=None)
     parser.add_argument("--folder", type=str, help="Folder to search for files", default=None)
     parser.add_argument("--pattern", type=str, help="File search pattern (e.g., '*.csv')", default=None)

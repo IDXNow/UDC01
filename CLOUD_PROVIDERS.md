@@ -194,7 +194,6 @@ This can be useful for debugging provider authentication issues and API errors.
 
 ```json
 {
-  "api_base_url": "http://localhost:1235/",
   "default_provider": "local",
   "default_model": "openai/gpt-oss-120b",
   "default_endpoint": "v1/chat/completions",
@@ -313,7 +312,7 @@ This can be useful for debugging provider authentication issues and API errors.
 
 The system logs will show which provider and model each agent uses:
 ```
-Agent Ted Sagan (anthropic/claude-3-5-sonnet) completed in 2.34s
+Agent Ted Sagan (anthropic/claude-4-5-sonnet) completed in 2.34s
 ```
 
 ## Troubleshooting
@@ -338,7 +337,7 @@ Agent Ted Sagan (anthropic/claude-3-5-sonnet) completed in 2.34s
 
 ## Migration from Legacy Configuration
 
-Old configurations without `providers` section will automatically fall back to legacy mode using the `api_base_url` setting.  To enable multi-provider support:
+Old configurations without `providers` section will automatically fall back to legacy mode with a default local provider.  To enable multi-provider support:
 
 1. Add the `providers` section to your config
 2. Add the `api_keys` section

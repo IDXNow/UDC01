@@ -1,7 +1,6 @@
 {
-  "api_base_url": "http://localhost:1234/",
   "default_provider": "local",
-  "default_model": "openai/gpt-oss-120b",
+  "default_model": "openai/gpt-oss-20b",
   "default_endpoint": "v1/chat/completions",
   "default_temperature": 1,
   "max_retries": 3,
@@ -13,7 +12,7 @@
   "log_details": true,
   "providers": {
     "local": {
-      "base_url": "http://localhost:1234",
+      "base_url": "http://localhost:1235",
       "endpoint": "v1/chat/completions",
       "auth_header": null,
       "request_format": "openai"
@@ -77,7 +76,7 @@
       {
         "name": "Nathan Fourier",
         "role": "verify",
-        "temperature": 0.1,
+        "temperature": 1,
         "instructions": "data_verification_system_msg",
         "request_instructions": "data_verification_request_msg"
       }
@@ -85,9 +84,8 @@
     "data_conversion": {
       "name": "Ted Sagan",
       "role": "convert",
-      "provider": "local",
-      "model": "gpt-4",
-      "temperature": 0.2
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5"
     },
     "data_validator": [
       {
@@ -100,7 +98,7 @@
       {
         "name": "Macy Hopper",
         "role": "validate",
-        "temperature": 0.2,
+        "temperature": 1,
         "instructions": "data_validation_system_msg",
         "request_instructions": "data_validation_request_msg"
       },
@@ -136,7 +134,7 @@
       {
         "name": "Lisa Bohr",
         "role": "validate",
-        "temperature": 0.2,
+        "temperature": 1,
         "instructions": "data_validation_system_msg",
         "request_instructions": "data_validation_request_msg"
       },

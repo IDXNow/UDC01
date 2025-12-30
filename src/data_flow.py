@@ -88,7 +88,7 @@ def process_data(file_path: str, config: dict) -> dict:
         if output_data is None:
             # Conversion agent did not return expected <output> tags.
             logging.warning("Conversion response missing <output> section; aborting.")
-            return {
+            return { # Consider retry 
                 "status": "conversion_error",
                 "conversion_response": conv_response,
                 "file_path": file_path,
