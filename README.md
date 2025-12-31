@@ -155,8 +155,8 @@ The Universal Data Converter is designed to be used from the command line, with 
 ### Command Line Options
 
 ```bash
-python src/main.py
-  --config CONFIG_PATH           # Path to main configuration file (default: src/default_config.json)
+python udc01.py
+  --config CONFIG_PATH           # Path to main configuration file (default: udc01/default_config.json)
   --conversion CONVERSION_PATH   # Path to conversion YAML (default: samples/conversions/sales_invoice_conv.yaml)
   --file FILE_PATH               # Specific file to load
   --folder FOLDER_PATH           # Folder to search for files
@@ -165,45 +165,45 @@ python src/main.py
   --parallel-agents              # Run validator agents in parallel (faster for cloud APIs)
 ```
 
-**Note**: If no `--config` or `--conversion` arguments are provided, the defaults will be used.  You can also use the config file in `src/default_config.json` for your own custom setup.
+**Note**: If no `--config` or `--conversion` arguments are provided, the defaults will be used.  You can also use the config file in `udc01/default_config.json` for your own custom setup.
 
-**Performance Tip**: Use `--parallel-agents` when working with cloud API providers (OpenAI, Anthropic, etc.)
+**Performance Tip**: Enable `--parallel-agents` when working with cloud API providers (OpenAI, Anthropic, etc.)
 
 ### Example Commands
 
 #### Converting a CSV file to pipe-delimited format (using defaults):
 
 ```bash
-python src/main.py --file "samples/sources/sales_invoice.csv"
+python udc01.py --file "samples/sources/sales_invoice.csv"
 ```
 
 Or explicitly specify the conversion configuration:
 
 ```bash
-python src/main.py --conversion "samples/conversions/sales_invoice_conv.yaml" \
-                  --file "samples/sources/sales_invoice.csv"
+python udc01.py --conversion "samples/conversions/sales_invoice_conv.yaml" \
+                --file "samples/sources/sales_invoice.csv"
 ```
 
 #### Converting an XML file to pipe-delimited format:
 
 ```bash
-python src/main.py --conversion "samples/conversions/product_inventory_conv.yaml" \
-                  --file "samples/sources/product_inventory.xml"
+python udc01.py --conversion "samples/conversions/product_inventory_conv.yaml" \
+                --file "samples/sources/product_inventory.xml"
 ```
 
 #### Converting multiple files in a directory:
 
 ```bash
-python src/main.py --conversion "samples/conversions/customer_order_conv.yaml" \
-                  --folder "samples/sources" \
-                  --pattern "*.xlsx"
+python udc01.py --conversion "samples/conversions/customer_order_conv.yaml" \
+                --folder "samples/sources" \
+                --pattern "*.xlsx"
 ```
 
 #### Using parallel execution for faster processing (cloud APIs):
 
 ```bash
-python src/main.py --file "samples/sources/sales_invoice.csv" \
-                  --parallel-agents
+python udc01.py --file "samples/sources/sales_invoice.csv" \
+                --parallel-agents
 ```
 
 #### Using cloud providers with custom configuration:
@@ -214,9 +214,9 @@ set ANTHROPIC_API_KEY=sk-ant-...
 set OPENAI_API_KEY=sk-proj-...
 
 # Use the cloud example configuration
-python src/main.py --config "samples/config/cloud_example_config.json" \
-                  --file "samples/sources/sales_invoice.csv" \
-                  --parallel-agents
+python udc01.py --config "samples/config/cloud_example_config.json" \
+                --file "samples/sources/sales_invoice.csv" \
+                --parallel-agents
 ```
 
 This will use Claude for conversion and GPT/Gemini for validation, running validators in parallel for maximum speed.
@@ -390,7 +390,7 @@ You can specify which provider each agent can use:
 When using cloud providers, enable parallel execution for faster processing:
 
 ```bash
-python src/main.py --file "samples/sources/sales_invoice.csv" --parallel-agents
+python udc01.py --file "samples/sources/sales_invoice.csv" --parallel-agents
 ```
 
 Or set in configuration:

@@ -43,7 +43,7 @@ logging.basicConfig(
 )
 
 # Import after logging is configured
-from data_flow import process_data
+from .data_flow import process_data
 
 def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
     """Validates that YAML contains all required message components."""
@@ -98,12 +98,12 @@ def load_config(config_path: str, conversion_path: str) -> dict:
     """Loads the configuration from the specified JSON file."""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    if not os.path.exists(conversion_path): #check to see if the conversion file is there
+    if not os.path.exists(conversion_path): # check to see if the conversion file is there
         raise FileNotFoundError(f"Conversion file not found: {conversion_path}")
     try:
         with open(config_path, 'r') as f:
             config = json.load(f)
-        with open(conversion_path, "r") as y:  #load the yaml file
+        with open(conversion_path, "r") as y:  # load the yaml file
             yaml_data = yaml.safe_load(y)
 
 
@@ -221,13 +221,13 @@ def save_logs(log_data: dict, config: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Universal Data Converter")
-    parser.add_argument("--config", type=str, default="src/default_config.json", help="Path to main configuration file")
+    parser.add_argument("--config", type=str, default="udc01/default_config.json", help="Path to main configuration file")
     parser.add_argument("--file", type=str, help="Specific file to load", default=None)
     parser.add_argument("--folder", type=str, help="Folder to search for files", default=None)
     parser.add_argument("--pattern", type=str, help="File search pattern (e.g., '*.csv')", default=None)
     parser.add_argument("--output-folder", type=str, help="Folder to save output files", default=None)
     parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml", help="path to conversion yaml")
-    parser.add_argument("--parallel-agents", action="store_true", help="Run validator agents in parallel (faster for cloud APIs, not recommended for local LLMs)")  
+    parser.add_argument("--parallel-agents", action="store_true", help="Run validator agents in parallel (faster for cloud APIs, not recommended for local LLMs)")
 
     args = parser.parse_args()
 
@@ -238,7 +238,7 @@ def main():
             config["file_save"]["folder"] = args.output_folder
         if args.parallel_agents:
             config["parallel_agents"] = True
-            logging.info("Parallel agent execution enabled via --parallel-agents flag") 
+            logging.info("Parallel agent execution enabled via --parallel-agents flag")
 
     except (FileNotFoundError, ValueError) as e:
         logging.error(f"Error loading configuration: {e}")

@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 import time
 from datetime import datetime
-from validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags, validate_no_placeholders
+from .validators import prepare_agent, run_agent, validate_output_2of3, verify_input_data_2of3, get_str_between_tags, validate_no_placeholders
 
 ################################################################################
 # Conversion logic                                                             #
@@ -22,7 +22,7 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0, prev_not
         .replace("{<!--PreviousConversionNotes-->}", prev_note)
     )
 
-    
+
     prepare_agent(agent, config)
 
     payload = {
@@ -50,7 +50,7 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0, prev_not
 
 def process_data(file_path: str, config: dict) -> dict:
     """Process *file_path* through verification -> conversion -> validation.
-    Implements a 2/3 majority rule for the verification and validation stages. 
+    Implements a 2/3 majority rule for the verification and validation stages.
     Retries the conversion up to *config['max_retries']* times if fewer than two validators approve the output.
     """
 
@@ -88,7 +88,7 @@ def process_data(file_path: str, config: dict) -> dict:
         if output_data is None:
             # Conversion agent did not return expected <output> tags.
             logging.warning("Conversion response missing <output> section; aborting.")
-            return { # Consider retry 
+            return { # Consider retry
                 "status": "conversion_error",
                 "conversion_response": conv_response,
                 "file_path": file_path,
@@ -179,4 +179,3 @@ def save_output_data(output_data: str, file_path: str, config: dict) -> str | No
     except Exception as exc:
         logging.error(f"Error saving output data: {exc}")
         return None
-
