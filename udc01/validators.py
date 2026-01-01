@@ -407,7 +407,7 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         }
     }
 
-def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | None:
+def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last: bool = False) -> str | None:
     """
     Extracts the string between the specified start and end tags.
 
@@ -420,16 +420,39 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | No
         The string between the tags if both are found, otherwise None.
     """
 
-    # Escape special characters in the tags
-    start_tag = re.escape(start_tag) 
-    end_tag = re.escape(end_tag) 
+    if first_last:
+        # logging.info(f"Using first_last on tags: {start_tag} , {end_tag}") # testing
+        # Case-insensitive search
+        s_lower = s_value.lower()
+        start_lower = start_tag.lower()
+        end_lower = end_tag.lower()
 
-    match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
+        # Find FIRST occurrence of start tag
+        start_pos = s_lower.find(start_lower)
+        if start_pos == -1:
+            return None
 
-    if match:
-        return match.group(1).strip()
+        # Find LAST occurrence of end tag
+        end_pos = s_lower.rfind(end_lower)
+        if end_pos == -1 or end_pos <= start_pos:
+            return None
+
+        # Extract content between first start tag and last end tag
+        content_start = start_pos + len(start_tag)
+        content = s_value[content_start:end_pos]
+
+        return content.strip()
     else:
-        return None
+        # Escape special characters in the tags
+        start_tag = re.escape(start_tag) 
+        end_tag = re.escape(end_tag) 
+
+        match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
+
+        if match:
+            return match.group(1).strip()
+        else:
+            return None
 
 def parse_isvalid(result_string: str) -> dict:
     """
