@@ -157,7 +157,7 @@ def load_file(file_path: str) -> str | None:
 
 def parse_output(message_content: str) -> str | None:
     """Extract the <output>…</output> section from an agent message."""
-    return get_str_between_tags(message_content, "<output>", "</output>")
+    return get_str_between_tags(message_content, "<output>", "</output>", True)
 
 
 def save_output_data(output_data: str, file_path: str, config: dict) -> str | None:
