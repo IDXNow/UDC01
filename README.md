@@ -58,8 +58,8 @@ An intuitive Streamlit-based interface for interactive configuration generation.
 - AI-assisted configuration generation with validation
 
 <p align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Interface"-->
-  ![UDC-Studio Interface](./img/Studio_001.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Interface">
+  <!--![UDC-Studio Interface](./img/Studio_001.png)-->
 </p>
 
 **Quick Start with UDC-Studio:**
@@ -114,8 +114,8 @@ The core transformation pipeline consists of several key stages:
    - Comprehensive validation reporting
 
 <p align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.data_flow.jpg"-->
-  ![UDC01 Data Flow](./img/udc01.data_flow.jpg)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.data_flow.jpg">
+  <!--![UDC01 Data Flow](./img/udc01.data_flow.jpg)-->
 </p>
 
 ---

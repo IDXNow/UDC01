@@ -1,8 +1,8 @@
 # UDC-Studio: AI-Assisted Configuration Generator
 
 <div align="center">
-  <!--img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Main Interface"-->
-  ![UDC-Studio Main Interface](./img/Studio_001.png)
+  <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Main Interface">
+  <!--![UDC-Studio Main Interface](./img/Studio_001.png)-->
 </div>
 
 <div align="center">
@@ -104,8 +104,8 @@ See [Cloud Provider Configuration](README.md#cloud-provider-configuration) in th
 ### Step 1: Upload & Analyze Data
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_002.png" alt="Upload and Preview"-->
-  ![Upload and Preview](./img/Studio_002.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_002.png" alt="Upload and Preview">
+  <!--![Upload and Preview](./img/Studio_002.png)-->
 </div>
 
 #### 1.1 Upload Your Data File
@@ -124,8 +124,8 @@ Once uploaded, UDC-Studio displays:
 #### 1.3 Analyze Data Structure
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_003.png" alt="Analyzing Data"-->
-  ![Analyzing Data](./img/Studio_003.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_003.png" alt="Analyzing Data">
+  <!--![Analyzing Data](./img/Studio_003.png)-->
 </div>
 
 Click **"Analyze Data"** to begin AI-powered analysis:
@@ -145,8 +145,8 @@ Click **"Analyze Data"** to begin AI-powered analysis:
 ### Step 2: Generate Configuration
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_004.png" alt="Configuration Generation"-->
-  ![Configuration Generation](./img/Studio_004.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_004.png" alt="Configuration Generation">
+  <!--![Configuration Generation](./img/Studio_004.png)-->
 </div>
 
 
@@ -168,8 +168,8 @@ Choose your desired output format:
 #### 2.3 Add Custom Instructions (Optional)
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_005.png" alt="Custom Instructions"-->
-  ![Custom Instructions](./img/Studio_005.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_005.png" alt="Custom Instructions">
+  <!--![Custom Instructions](./img/Studio_005.png)-->
 </div>
 
 
@@ -202,8 +202,8 @@ The generation process typically takes 10-30 seconds depending on file complexit
 #### 3.1 Review Generated YAML
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_006.png" alt="YAML Content"-->
-  ![YAML Content](./img/Studio_006.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_006.png" alt="YAML Content">
+  <!--![YAML Content](./img/Studio_006.png)-->
 </div>
 
 The **YAML Content** tab displays:
@@ -220,8 +220,8 @@ The **YAML Content** tab displays:
 #### 3.2 Validation Report
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_007.png" alt="Validation Report"-->
-  ![Validation Report](./img/Studio_007.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_007.png" alt="Validation Report">
+  <!--![Validation Report](./img/Studio_007.png)-->
 </div>
 
 
@@ -241,8 +241,8 @@ If validation doesn't pass on first attempt, click **"Regenerate"** to create an
 #### 3.3 Download Configuration
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_008.png" alt="Download Options"-->
-  ![Download Options](./img/Studio_008.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_008.png" alt="Download Options">
+  <!--![Download Options](./img/Studio_008.png)-->
 </div>
 
 Before downloading:
@@ -257,8 +257,8 @@ Before downloading:
 #### 3.4 Usage Example
 
 <div align="center">
-  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_009.png" alt="Usage Example"-->
-  ![Usage Example](./img/Studio_009.png)
+  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_009.png" alt="Usage Example">
+  <!--![Usage Example](./img/Studio_009.png)-->
 </div>
 
 UDC-Studio provides ready-to-use command examples:
@@ -283,8 +283,8 @@ Simply copy and paste these commands to start using your new configuration.
 ### Using the Profile Selector
 
 <div align="center">
-  <!--img width="40%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="Profile Selection"-->
-  ![Profile Selection](./img/Studio_001.png)
+  <img width="40%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="Profile Selection">
+  <!--![Profile Selection](./img/Studio_001.png)-->
 </div>
 
 Profiles allow you to:
