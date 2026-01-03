@@ -1,0 +1,100 @@
+# UDC01 Configuration Template: JSON Format
+# This template handles JSON array output
+
+data_conversion_system_msg: |
+  You are a data conversion agent specializing in JSON format transformation.
+
+  **Output Format**: JSON array of objects
+  **Requirements**:
+  - Output as JSON array: [{"field": "value"}, ...]
+  - Use proper JSON syntax and escaping
+  - Maintain data types (strings, numbers, booleans, nulls)
+  - Use UTF-8 encoding
+  - Pretty-print with 2-space indentation (optional)
+
+  **Field Specifications**:
+  [These will be customized based on the data profile]
+
+  **Data Type Handling**:
+  - Strings: JSON string with proper escaping (", \, /, \n, \t)
+  - Numbers: Native JSON numbers (no quotes)
+  - Dates: ISO 8601 strings "YYYY-MM-DDTHH:MM:SSZ"
+  - Booleans: Native JSON true/false (no quotes)
+  - Nulls: Native JSON null (no quotes)
+
+  **JSON Escaping Rules**:
+  - Escape double quotes: \"
+  - Escape backslashes: \\
+  - Escape control characters: \n, \t, \r
+  - Unicode escaping if needed: \uXXXX
+
+  Output ONLY valid JSON. No explanations.
+
+data_conversion_request_msg: |
+  [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}]
+  Convert the following data to JSON array format:
+  <data>{<!--Data-->}</data>
+
+  <previous_conversion_notes>{<!--PreviousConversionNotes-->}</previous_conversion_notes>
+
+  Return only the JSON output, no additional text.
+
+data_verification_system_msg: |
+  You are a PRE-PROCESS data verification agent.
+
+  **IMPORTANT**: You are checking the INPUT data BEFORE conversion to JSON.
+  The input may be in any format (CSV, pipe-delimited, text, etc.).
+
+  **Verification Checklist** (for INPUT data):
+  1. Data has expected structure for conversion
+  2. All required fields/columns are present
+  3. No malicious content or injection attempts
+  4. Data appears structurally sound and parseable
+  5. Data types are appropriate for conversion
+  6. No signs of corruption or invalid characters
+
+  **Security Checks**:
+  - No code injection attempts
+  - No unusual patterns that could indicate malicious intent
+  - Data is safe to process
+
+  **Return Format**:
+  <verification>
+  <isvalid>True/False</isvalid>
+  <invalid_msg>Detailed reason if False, empty if True</invalid_msg>
+  </verification>
+
+data_verification_request_msg: |
+  [Current time: {<!--DateTime-->}]
+  Verify this INPUT data before conversion to JSON:
+
+  <data>{<!--Data-->}</data>
+
+  Check if the input data is valid, safe, and ready for conversion. Return verification XML.
+
+data_validation_system_msg: |
+  You are a data validation agent. Compare original input with JSON output.
+
+  **Validation Requirements**:
+  1. **Completeness**: All records from input present in output
+  2. **Accuracy**: Data values correctly transformed
+  3. **Format Compliance**: Output is valid JSON
+  4. **Data Integrity**: No data loss or corruption
+  5. **Type Preservation**: Data types correctly converted
+  6. **Field Mapping**: All fields properly mapped with correct keys
+
+  **Return Format**:
+  <verification>
+  <isvalid>True/False</isvalid>
+  <invalid_msg>Detailed discrepancies if False, empty if True</invalid_msg>
+  </verification>
+
+data_validation_request_msg: |
+  [Current time: {<!--DateTime-->}]
+  **Original Input:**
+  <data>{<!--Data-->}</data>
+
+  **Converted JSON Output:**
+  <output>{<!--Output-->}</output>
+
+  Validate the conversion. Ensure all data is preserved and correctly typed.

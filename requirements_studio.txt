@@ -1,0 +1,21 @@
+# UDC-Studio Requirements
+# Includes both UDC01 core and Studio UI dependencies
+# Python 3.8+
+
+# === UDC01 Core Dependencies ===
+pandas>=2.0.0
+pyyaml>=6.0
+requests>=2.31.0
+openpyxl>=3.1.0
+
+# === Studio UI Dependencies ===
+streamlit>=1.28.0
+
+# === Optional: Enhanced Features ===
+python-dotenv>=1.0.0
+
+# === Development Dependencies (optional) ===
+# Uncomment for development
+# pytest>=7.4.0
+# black>=23.0.0
+# flake8>=6.0.0

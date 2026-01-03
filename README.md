@@ -7,6 +7,9 @@
 
 ## Table of Contents
 - [Introduction](#introduction)
+- [Getting Started: Two Ways to Use UDC01](#getting-started-two-ways-to-use-udc01)
+  - [Command Line Interface (CLI)](#️-command-line-interface-cli)
+  - [UDC-Studio (Web UI)](#-udc-studio-web-ui)
 - [Key Features](#key-features)
 - [Framework Architecture](#framework-architecture)
   - [Data Process Flow](#data-process-flow)
@@ -33,6 +36,39 @@
 The **Universal Data Converter (UDC01)** is an **AI-driven data transformation framework**, designed to produce standardized output data formats using **structured, semi-structured, and unstructured** input data.  It leverages **LLM-powered verification, validation and conversion** to **automate** data transformation, ensuring a consistent output format for enterprise integration.
 
 UDC01 implements a robust validation system using a unique 2/3 majority voting mechanism, ensuring high accuracy and reliability in data transformations.  The framework is particularly effective for organizations dealing with diverse data sources and formats that require standardization for downstream processing.
+
+---
+
+## Getting Started: Two Ways to Use UDC01
+
+UDC01 offers two interfaces to suit different workflows:
+
+### 🖥️ **Command Line Interface (CLI)**
+Perfect for automation, scripting, and integration into existing workflows.  See [Usage](#usage) section below for details.
+
+```bash
+python udc01.py --file "samples/sources/sales_invoice.csv"
+```
+
+### 🎨 **UDC-Studio (Web UI)**
+An intuitive Streamlit-based interface for interactive configuration generation.  Ideal for:
+- First-time users exploring UDC01 capabilities
+- Creating and testing YAML configurations visually
+- Analyzing data structure before conversion
+- AI-assisted configuration generation with validation
+
+<p align="center">
+  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Interface"-->
+  ![UDC-Studio Interface](./img/Studio_001.png)
+</p>
+
+**Quick Start with UDC-Studio:**
+```bash
+pip install -r requirements_studio.txt
+python udc_studio.py
+```
+
+See the [**UDC-Studio Guide**](UDC-STUDIO.md) for complete instructions and walkthrough.
 
 ---
 
@@ -78,7 +114,8 @@ The core transformation pipeline consists of several key stages:
    - Comprehensive validation reporting
 
 <p align="center">
-  <img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.data_flow.jpg">
+  <!--img width="80%" src="https://github.com/IDXNow/UDC01/blob/main/img/udc01.data_flow.jpg"-->
+  ![UDC01 Data Flow](./img/udc01.data_flow.jpg)
 </p>
 
 ---
@@ -486,7 +523,7 @@ Example:
       "role": "convert",
       "provider": "anthropic",
       "model": "claude-3-5-sonnet-20241022",
-      "temperature": 0.2
+      "temperature": 1.0
     }
   }
 }
@@ -541,7 +578,7 @@ data_validation_system_msg: |
 ---
 
 ## License
-Copyright (c) 2025 Steve Wint / I D X
+Copyright (c) 2026 Steve Wint / I D X
 
 This project is licensed under the [MIT License](https://github.com/IDXNow/UDC01/blob/main/LICENSE) - see the LICENSE file for details.
 

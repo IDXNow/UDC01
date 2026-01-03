@@ -169,7 +169,7 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
         payload = payload_builder(agent, config)
 
         # Validate no placeholders remain
-        if not validate_no_placeholders(payload["request"]):
+        if config.get("validate_placeholders", True) and not validate_no_placeholders(payload["request"]):
             logging.error(f"Unreplaced placeholders in {agent_type} request for agent {agent.get('name')}")
             results.append({"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
             continue
@@ -214,7 +214,7 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
         payload = payload_builder(agent, config)
 
         # Validate no placeholders remain
-        if not validate_no_placeholders(payload["request"]):
+        if config.get("validate_placeholders", True) and not validate_no_placeholders(payload["request"]):
             logging.error(f"Unreplaced placeholders in {agent_type} request for agent {agent.get('name')}")
             return (idx, {"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
 
@@ -301,12 +301,19 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     backoff = agent_config.get("retry_backoff", 2)
     timeout = agent_config.get("timeout", 600)
 
-    model = agent_config.get("model", agent_config["default_model"])
-    temperature = agent_config.get("temperature", agent_config["default_temperature"])
-
     # Determine provider and get provider configuration
     provider = get_provider(agent_config)
     providers = agent_config.get("providers", {})
+
+    # determine model: agent's explicit model --> provider's default_model --> global default_model
+    if "model" in agent_config:
+        model = agent_config["model"]
+    elif provider in providers and "default_model" in providers[provider]:
+        model = providers[provider]["default_model"]
+    else:
+        model = agent_config.get("default_model", "openai/gpt-oss-20b")
+
+    temperature = agent_config.get("temperature", agent_config["default_temperature"])
 
     if provider not in providers:
         logging.error(f"Provider '{provider}' not found in configuration")
@@ -407,7 +414,7 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         }
     }
 
-def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | None:
+def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last: bool = False) -> str | None:
     """
     Extracts the string between the specified start and end tags.
 
@@ -420,16 +427,40 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str) -> str | No
         The string between the tags if both are found, otherwise None.
     """
 
-    # Escape special characters in the tags
-    start_tag = re.escape(start_tag) 
-    end_tag = re.escape(end_tag) 
+    if first_last:
+        # logging.info(f"Using first_last on tags: {start_tag} , {end_tag}") # testing
+        # Case-insensitive search
+        s_lower = s_value.lower()
+        start_lower = start_tag.lower()
+        end_lower = end_tag.lower()
 
-    match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
+        # Find FIRST occurrence of start tag
+        start_pos = s_lower.find(start_lower)
+        if start_pos == -1:
+            return None
 
-    if match:
-        return match.group(1).strip()
+        # Find LAST occurrence of end tag
+        end_pos = s_lower.rfind(end_lower)
+        if end_pos == -1 or end_pos <= start_pos:
+            return None
+
+        # Extract content between first start tag and last end tag
+        content_start = start_pos + len(start_tag)
+        content = s_value[content_start:end_pos]
+
+        return content.strip()
     else:
-        return None
+        # Escape special characters in the tags
+        start_tag = re.escape(start_tag) 
+        end_tag = re.escape(end_tag) 
+
+        match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
+
+        if match:
+            return match.group(1).strip()
+        else:
+            return None
+
 
 def parse_isvalid(result_string: str) -> dict:
     """

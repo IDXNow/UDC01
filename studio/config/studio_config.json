@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+
+  "cloud_managed_api": {
+    "api_base_url": "https://api.bevdi.com/udc/v1/",
+    "api_key_env": "UDC_API_KEY",
+    "default_endpoint": "jobs",
+    "organization_id": null,
+    "features": {
+      "team_collaboration": true,
+      "audit_logging": true,
+      "industry_templates": true,
+      "enhanced_validation": true
+    }
+  },
+
+  "profiling": {
+    "sample_size_rows": 100,
+    "max_file_size_mb": 50,
+    "supported_formats": ["csv", "xlsx", "xml", "json", "txt", "tsv", "pipe"],
+    "detection_confidence_threshold": 0.7
+  },
+
+  "generation": {
+    "templates_path": "studio/config_builder/templates/",
+    "validation_strictness": "standard",
+    "retry_limit": 3,
+    "consensus_requirement": "2_of_3"
+  },
+
+  "ui": {
+    "theme": "light",
+    "show_advanced_options": false,
+    "auto_save": true
+  }
+}

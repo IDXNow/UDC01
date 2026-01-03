@@ -12,7 +12,7 @@
   "parallel_agents": true,
   "max_parallel_workers": 2,
   "log_details": true,
-
+  "validate_placeholders": true,
   "providers": {
     "local": {
       "base_url": "http://localhost:1234",

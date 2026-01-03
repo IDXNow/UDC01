@@ -10,19 +10,22 @@
   "parallel_agents": true,
   "max_parallel_workers": 2,
   "log_details": true,
+  "validate_placeholders": true,
   "providers": {
     "local": {
-      "base_url": "http://localhost:1235",
+      "base_url": "http://localhost:1234",
       "endpoint": "v1/chat/completions",
       "auth_header": null,
-      "request_format": "openai"
+      "request_format": "openai",
+      "default_model": "openai/gpt-oss-20b"
     },
     "openai": {
       "base_url": "https://api.openai.com",
       "endpoint": "v1/chat/completions",
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
-      "request_format": "openai"
+      "request_format": "openai",
+      "default_model": "gpt-5-mini"
     },
     "anthropic": {
       "base_url": "https://api.anthropic.com",
@@ -31,14 +34,16 @@
       "auth_prefix": "",
       "version_header": "anthropic-version",
       "version": "2023-06-01",
-      "request_format": "anthropic"
+      "request_format": "anthropic",
+      "default_model": "claude-sonnet-4-5"
     },
     "google": {
       "base_url": "https://generativelanguage.googleapis.com",
       "endpoint": "v1beta/models/{model}:generateContent",
       "auth_header": "x-goog-api-key",
       "auth_prefix": "",
-      "request_format": "google"
+      "request_format": "google",
+      "default_model": "gemini-2.5-flash"
     }
   },
   "api_keys": {
@@ -135,14 +140,14 @@
         "name": "Lisa Bohr",
         "role": "validate",
         "temperature": 1,
-        "instructions": "data_validation_system_msg",
-        "request_instructions": "data_validation_request_msg"
+        "instructions": "message_validation_system_msg",
+        "request_instructions": "message_validation_request_msg"
       },
       {
         "name": "Myrna Pasteur",
         "role": "validate",
-        "instructions": "data_validation_system_msg",
-        "request_instructions": "data_validation_request_msg"
+        "instructions": "message_validation_system_msg",
+        "request_instructions": "message_validation_request_msg"
       }
     ]
     
