@@ -89,8 +89,7 @@
     "data_conversion": {
       "name": "Ted Sagan",
       "role": "convert",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-5"
+      "provider": "local"
     },
     "data_validator": [
       {

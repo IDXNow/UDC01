@@ -74,6 +74,8 @@ See the [**UDC-Studio Guide**](UDC-STUDIO.md) for complete instructions and walk
 
 ## Key Features
 
+- **Multiple Input Formats**: Supports Excel, CSV, JSON, XML, HTML, TXT, and PDF files
+- **Flexible Output Formats**: Save results as text files or Excel workbooks (.xlsx)
 - **Intelligent Data Processing**: Advanced LLM-based transformation pipeline for handling structured, semi-structured, and unstructured input data
 - **Multi-Stage Validation**: Implements a 2/3 voting mechanism across multiple LLM agents to ensure transformation accuracy
 - **Multi-Provider Support**: Works with local models, OpenAI (GPT), Anthropic (Claude), and Google (Gemini)
@@ -93,7 +95,8 @@ See the [**UDC-Studio Guide**](UDC-STUDIO.md) for complete instructions and walk
 The core transformation pipeline consists of several key stages:
 
 1. **Input Processing**
-   - File/queue content reading
+   - File/queue content reading (Excel, CSV, JSON, XML, HTML, TXT, PDF)
+   - PDF text extraction with table support
    - Initial data structure analysis
    - Format identification
 
@@ -130,6 +133,7 @@ pandas
 pyyaml
 requests
 openpyxl
+pdfplumber
 ```
 
 ### LLM Requirements
@@ -290,6 +294,50 @@ PROD-100|Deluxe Widget|XYZ Manufacturing|150|In Stock|29.99
 OrderNumber|CustomerID|CustomerName|OrderDate|ProductSKU|ProductDescription|Quantity|OrderTotal|ShippingStatus
 ORD-12345|CUST-100|Acme Corporation|2023-01-20|PROD-100|Deluxe Widget|10|299.90|Shipped
 ```
+
+### PDF Invoice Processing (PDF to Pipe-delimited)
+**Input**: PDF document with invoice data (text-based or containing tables)
+**Configuration**: `samples/conversions/sales_invoice_conv.yaml`
+**Output**: Pipe-delimited text file with extracted and standardized invoice data:
+```
+InvoiceID|CustomerID|CustomerName|InvoiceDate|DueDate|TotalAmount|PaymentStatus
+INV-2024-001|CUST-500|Global Enterprises|2024-01-20|2024-02-20|3750.00|Pending
+```
+
+**Note**: PDF text extraction works best with text-based PDFs. Tables are automatically detected and extracted. For scanned documents, OCR preprocessing may be required (future enhancement).
+
+### Excel Output
+UDC01 can save conversion results as Excel workbooks (.xlsx) instead of text files, making it easy to open results directly in Excel or other spreadsheet applications.
+
+**To enable Excel output:**
+
+1. Edit `udc01/default_config.json`:
+   ```json
+   "file_save": {
+     "folder": "output/",
+     "file_extension": "xlsx"
+   }
+   ```
+
+2. Run any conversion:
+   ```bash
+   python udc01.py --file "samples/sources/sales_invoice.csv"
+   ```
+
+3. Result: `output/sales_invoice-20240111-143022.xlsx` with formatted table
+
+**Supported formats for Excel export:**
+- Pipe-delimited data (most common UDC01 output)
+- CSV format
+- JSON arrays
+
+**Features:**
+- Automatic column width adjustment for readability
+- Headers in first row
+- Data preserved with proper formatting
+- Graceful fallback to text for non-tabular outputs (SQL views, plain text)
+
+**Note**: Non-tabular outputs (such as SQL CREATE VIEW statements) will automatically fall back to `.txt` format with a warning logged.
 
 ---
 

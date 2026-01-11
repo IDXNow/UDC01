@@ -16,6 +16,7 @@ ENV/
 *.swp
 *.swo
 *~
+.Refs/
 
 # Output and runtime folders
 logs/
