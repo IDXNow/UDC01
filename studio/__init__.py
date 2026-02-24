@@ -13,7 +13,7 @@ Usage:
     python udc_studio.py
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from .config_builder.core.builder import ConfigurationBuilder
 from .config_builder.core.api_client import create_client

@@ -66,7 +66,10 @@ def build_provider_headers(provider: str, provider_config: dict, api_keys: dict)
     return headers
 
 def format_request_for_provider(provider_config: dict, model: str,
-                                 temperature: float, messages: list) -> dict:
+                                 temperature: float, messages: list,
+                                 thinking_budget: int = None,
+                                 reasoning_effort: str = None,
+                                 max_tokens: int = None) -> dict:
     """Formats the request payload for specific provider."""
     request_format = provider_config.get("request_format", "openai")
     model_name = model.split("/")[-1] if "/" in model else model
@@ -75,34 +78,52 @@ def format_request_for_provider(provider_config: dict, model: str,
         # Anthropic uses different format: separate system message from messages array
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
         user_messages = [m for m in messages if m["role"] != "system"]
-        return {
+        payload = {
             "model": model_name,
-            "max_tokens": 10000,
-            "temperature": temperature,
+            "max_tokens": max_tokens if max_tokens is not None else 10000,
             "system": system_msg,
             "messages": user_messages
         }
+        if thinking_budget is not None:
+            # Extended thinking: temperature is forced to 1 by the Anthropic API
+            payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
+            payload["temperature"] = 1
+        elif temperature is not None:
+            payload["temperature"] = temperature
+        return payload
     elif request_format == "google":
         # Google Gemini uses different format: contents with parts
         contents = []
         for msg in messages:
             role = "user" if msg["role"] in ["user", "system"] else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+        gen_config = {}
+        if max_tokens is not None:
+            gen_config["maxOutputTokens"] = max_tokens
+        if temperature is not None:
+            gen_config["temperature"] = temperature
+        if thinking_budget is not None:
+            # Gemini: 0 = disabled, -1 = dynamic, N = token budget
+            gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
         return {
             "contents": contents,
-            "generationConfig": {
-                "temperature": temperature,
-                "maxOutputTokens": 8192
-            }
+            "generationConfig": gen_config
         }
     else:
         # OpenAI format (default for local and openai providers)
-        return {
+        payload = {
             "model": model_name,
-            "temperature": temperature,
             "stream": False,
             "messages": messages
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        if reasoning_effort is not None:
+            # OpenAI o-series: reasoning_effort replaces temperature
+            payload["reasoning_effort"] = reasoning_effort
+        elif temperature is not None:
+            payload["temperature"] = temperature
+        return payload
 
 def parse_provider_response(provider_config: dict, response_data: dict) -> dict:
     """Parses provider-specific response to standard format."""
@@ -123,10 +144,9 @@ def parse_provider_response(provider_config: dict, response_data: dict) -> dict:
         return response_data["choices"][0]["message"]
 
 def prepare_agent(agent_cfg: dict, config: dict):
-    """Populate common runtime attributes onto an agent configuration."""
-    agent_cfg["endpoint"] = config["default_endpoint"]
-    agent_cfg["default_model"] = config.get("default_model", "")
-    agent_cfg["default_temperature"] = config.get("default_temperature", "1")
+    """Fill in default runtime attributes only if not already set by config injection."""
+    agent_cfg.setdefault("default_model", config.get("default_model", ""))
+    agent_cfg.setdefault("default_temperature", config.get("default_temperature"))
 
 
 def run_2of3_consensus(agents: list, payload_builder, config: dict, agent_type: str) -> list:
@@ -313,7 +333,10 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     else:
         model = agent_config.get("default_model", "openai/gpt-oss-20b")
 
-    temperature = agent_config.get("temperature", agent_config["default_temperature"])
+    temperature = agent_config.get("temperature", agent_config.get("default_temperature"))
+    thinking_budget = agent_config.get("thinking_budget", agent_config.get("default_thinking_budget"))
+    reasoning_effort = agent_config.get("reasoning_effort", agent_config.get("default_reasoning_effort"))
+    max_tokens = agent_config.get("max_tokens", agent_config.get("default_max_tokens"))
 
     if provider not in providers:
         logging.error(f"Provider '{provider}' not found in configuration")
@@ -341,7 +364,12 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     messages.append(user_query)
 
     # Create provider-specific request payload
-    json_payload = format_request_for_provider(provider_config, model, temperature, messages)
+    json_payload = format_request_for_provider(
+        provider_config, model, temperature, messages,
+        thinking_budget=thinking_budget,
+        reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens
+    )
 
     # Retry loop with exponential backoff
     last_error = None
@@ -361,6 +389,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
                 "elapsed_time": round(elapsed_time, 2),
                 "model": model,
                 "temperature": temperature,
+                "thinking_budget": thinking_budget,
+                "reasoning_effort": reasoning_effort,
                 "provider": provider,
                 "retry_count": attempt
             }
@@ -371,13 +401,13 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
 
         except requests.exceptions.RequestException as e:
             last_error = e
-            # Try to get detailed error message from response
+            # get detailed error message from response
             error_detail = str(e)
             if hasattr(e, 'response') and e.response is not None:
                 try:
                     error_json = e.response.json()
                     if 'error' in error_json:
-                        # Format the error nicely
+                        
                         err = error_json['error']
                         if isinstance(err, dict):
                             msg = err.get('message', err)
@@ -428,7 +458,6 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last:
     """
 
     if first_last:
-        # logging.info(f"Using first_last on tags: {start_tag} , {end_tag}") # testing
         # Case-insensitive search
         s_lower = s_value.lower()
         start_lower = start_tag.lower()

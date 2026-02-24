@@ -1,6 +1,10 @@
 # UDC-Studio: AI-Assisted Configuration Generator
 
 <div align="center">
+  <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/UDC01-Img00011.jpg" alt="UDC01 - Universal data Converter">
+</div>
+
+<div align="center">
   <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/Studio_001.png" alt="UDC-Studio Main Interface">
   <!--![UDC-Studio Main Interface](./img/Studio_001.png)-->
 </div>
@@ -111,7 +115,7 @@ See [Cloud Provider Configuration](README.md#cloud-provider-configuration) in th
 #### 1.1 Upload Your Data File
 
 - Drag and drop a file or click **"Browse files"**
-- Supported formats: CSV, XML, Excel (XLSX), JSON, TXT
+- Supported formats: CSV, XML, Excel (XLSX), JSON, TXT, PDF
 - Maximum file size: 200MB
 
 #### 1.2 Review Sample Preview
@@ -161,9 +165,10 @@ The analysis results show:
 
 Choose your desired output format:
 - **Pipe-delimited** (|) - Default
-- **Comma-delimited** (,)
-- **Tab-delimited** (\t)
-- **Custom delimiter**
+- **CSV** (comma-delimited)
+- **JSON** (array of objects)
+- **SQL View** (CREATE VIEW statement)
+- **Custom** (describe in instructions)
 
 #### 2.3 Add Custom Instructions (Optional)
 

@@ -379,7 +379,6 @@ if st.session_state.step == 1:
 
             # Read file content
             content = uploaded_file.read()
-            # print(f"Content: {content}") # testing
 
             # Try to decode as UTF-8
             try:
@@ -393,8 +392,7 @@ if st.session_state.step == 1:
 
             # Truncate to sample size
             lines = content.split('\n')[:sample_size]
-            # sample_data = '\n'.join(lines) # testing/uncomment back
-            sample_data = content # testing --chould be truncated
+            sample_data = '\n'.join(lines)
 
 
             st.session_state.sample_data = sample_data

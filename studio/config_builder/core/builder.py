@@ -32,7 +32,6 @@ class ConfigurationBuilder:
 
         # Load or create base UDC01 config
         self.base_config = self._load_base_udc_config()
-        # print(f"Config: {self.base_config}") # testing
 
 
     def verify_sample_safety(self, sample_data: str) -> List[Dict[str, Any]]:
@@ -51,11 +50,8 @@ class ConfigurationBuilder:
         # Build safety check configuration
         safety_config = self._build_safety_config()
 
-        self.logger.info("Safety config...") # testing
-
         # Run verification through client (local or cloud)
         try:
-            # self.logger.info("About to run 'verify_data'...") # testing
             results = self.client.verify_data(sample_data, safety_config)
             self.logger.info(f"Safety verification complete: {len(results)} agents responded")
             return results
@@ -372,7 +368,6 @@ Validate this profile."""
         if "default_provider" not in config:
             config["default_provider"] = self.base_config.get("default_provider", "local")
 
-        # print(f"_ensure_required_fields.config: {config}") # testinf
         return config
 
     def _expand_env_vars(self, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -442,7 +437,6 @@ Validate this profile."""
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Return default UDC01 configuration"""
-        self.logger.info(f"getting default configs programatically (why?)") # testing
 
         return {
             "api_base_url": self.config.get("local", {}).get("api_base_url", "http://localhost:1234/"),

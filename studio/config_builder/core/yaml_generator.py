@@ -137,7 +137,7 @@ UDC01 uses special runtime placeholders that MUST be preserved EXACTLY as shown 
 ```
 [Current time: {{<!--DateTime-->}}]
 <data>{{<!--Data-->}}</data>
-<output>{{<!--Output-->}}</output>
+<o>{{<!--Output-->}}</o>
 ```
 
 Do NOT modify, escape, or change these placeholders.  Preserve the exact format with wrapper tags.
@@ -150,12 +150,12 @@ Do NOT modify, escape, or change these placeholders.  Preserve the exact format 
 - Include proper delimiters, quote handling, and date formats
 - Add validation rules based on data types
 - PRESERVE all runtime placeholders with their wrapper tags exactly as shown above
-- **CRITICAL**: The data_conversion_system_msg MUST instruct the conversion agent to wrap output in <output> tags:
+- **CRITICAL**: The data_conversion_system_msg MUST instruct the conversion agent to wrap output in <o> tags:
   ```
   Format your output as:
-  <output>
+  <o>
   [converted data here]
-  </output>
+  </o>
   ```
 
 **OUTPUT FORMAT:**
@@ -352,7 +352,7 @@ Return your validation result as XML:
 <data>{<!--Data-->}</data>
 
 **GENERATED YAML:**
-<output>{<!--Output-->}</output>
+<o>{<!--Output-->}</o>
 
 Validate this YAML configuration and return your verdict in XML format."""
 
@@ -375,11 +375,11 @@ data_conversion_system_msg: |
   **Data Types**: [Specify data types]
 
   Ensure all data is properly formatted and validated.
-  The converted data needs to appear within the <output> tags.
+  The converted data needs to appear within the <o> tags.
   Format your output as:
-  <output>
+  <o>
     **Your output content here**
-  </output>
+  </o>
 
 data_conversion_request_msg: |
   Convert the following data:
@@ -414,7 +414,7 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   **Converted Output:**
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Validate the conversion.
 """

@@ -29,7 +29,13 @@ data_conversion_system_msg: |
   - Quote fields with newlines: "multi
     line value"
 
-  Output ONLY the CSV data. No explanations.
+  Format your output as:
+  <o>
+  [header row]
+  [data rows]
+  </o>
+
+  Output ONLY the CSV data within <o> tags. No explanations.
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}]
@@ -96,6 +102,6 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   **Converted CSV Output:**
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Validate the conversion thoroughly. Return verification XML.

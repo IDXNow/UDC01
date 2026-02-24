@@ -86,13 +86,11 @@ def process_data(file_path: str, config: dict) -> dict:
         output_data = parse_output(conversion_content) if conversion_content else None
 
         if output_data is None:
-            # Conversion agent did not return expected <output> tags.
-            logging.warning("Conversion response missing <output> section; aborting.")
-            return { # Consider retry
-                "status": "conversion_error",
-                "conversion_response": conv_response,
-                "file_path": file_path,
-            }
+            # Conversion agent did not return expected <o> tags — retry.
+            retry_count += 1
+            logging.warning(f"Conversion response missing <o> section (attempt {retry_count}/{max_retries}); retrying…")
+            prev_conv_msg = "Your previous response was missing the required <o>…</o> tags. You MUST wrap all output in <o> and </o> tags."
+            continue
 
         # Validate converted output
         validation_results = validate_output_2of3(raw_data, output_data, config)
@@ -225,8 +223,8 @@ def load_file(file_path: str) -> str | None:
 
 
 def parse_output(message_content: str) -> str | None:
-    """Extract the <output>…</output> section from an agent message."""
-    return get_str_between_tags(message_content, "<output>", "</output>", True)
+    """Extract the <o>…</o> section from an agent message."""
+    return get_str_between_tags(message_content, "<o>", "</o>", True)
 
 
 def parse_tabular_data(output_data: str) -> pd.DataFrame | None:

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
 
   "cloud_managed_api": {
     "api_base_url": "https://api.bevdi.com/udc/v1/",
@@ -15,7 +15,7 @@
   },
 
   "profiling": {
-    "sample_size_rows": 100,
+    "sample_size_rows": 500,
     "max_file_size_mb": 50,
     "supported_formats": ["csv", "xlsx", "xml", "json", "txt", "tsv", "pipe"],
     "detection_confidence_threshold": 0.7

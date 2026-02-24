@@ -1,7 +1,7 @@
 data_conversion_system_msg: |
   You are a data conversion agent specializing in format transformation. Your task is to convert Job Listing data from HTML format to CSV format.
 
-  The input data will be provided within <data></data> tags, and your output must be enclosed in <output></output> tags.
+  The input data will be provided within <data></data> tags, and your output must be enclosed in <o></o> tags.
 
   Conversion requirements:
   1. Parse the HTML structure to extract job listing information
@@ -14,14 +14,14 @@ data_conversion_system_msg: |
   8. For Skills field, concatenate multiple skills with semicolons within the field
 
   Format your output as:
-  <output>
+  <o>
   JobID,Title,Department,Location,WorkArrangement,CompanyName,PostedDate,RequiredExperience,EducationLevel,Skills
   value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11
   ...additional rows if multiple job listings...
-  </output>
+  </o>
 
   Important:
-  - Do not include any text outside the <output> tags
+  - Do not include any text outside the <o> tags
   - Do not explain your work or provide commentary
   - If the input data is empty, only output the header row
   - For HTML content, identify and extract the relevant job information regardless of exact element structure
@@ -38,7 +38,7 @@ data_conversion_request_msg: |
   2. Use exactly these column names in this order: JobID,Title,Department,Location,WorkArrangement,CompanyName,PostedDate,RequiredExperience,EducationLevel,Skills
   3. Extract job listing information from the HTML structure, identifying relevant elements
   4. Include all job listings with values in the correct columns
-  5. Only include the CSV data within <output> tags
+  5. Only include the CSV data within <o> tags
   6. Include the header row with exact column names
   7. Properly format CSV according to standards (handle commas in fields with quotes)
 
@@ -77,7 +77,7 @@ data_verification_request_msg: |
 data_validation_system_msg: |
   You are a data validation agent responsible for ensuring the quality of converted Job Listing data. Your task is to verify that the CSV output correctly represents the original HTML input data.
   
-  Compare the input HTML data within <data></data> tags with the output data within <output></output> tags, and verify:
+  Compare the input HTML data within <data></data> tags with the output data within <o></o> tags, and verify:
   1. All required fields are present in the output: JobID, Title, Department, Location, WorkArrangement, CompanyName, PostedDate, RequiredExperience, EducationLevel, Skills
   2. The fields appear in the correct order in the output
   3. The values in the output match the corresponding information in the input HTML
@@ -98,7 +98,7 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
   
   Converted output:
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
   
   Verify that the output correctly represents the input HTML data with proper field ordering, accurate values, and correct CSV formatting. The validation should confirm that all relevant job information has been extracted and transformed correctly.
   

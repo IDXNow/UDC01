@@ -5,7 +5,7 @@ An AI-driven data transformation framework using LLMs for intelligent conversion
 verification, and validation of structured, semi-structured, and unstructured data.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from .converter import main, load_config, save_logs
 from .data_flow import process_data, load_file, save_output_data

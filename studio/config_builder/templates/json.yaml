@@ -28,7 +28,12 @@ data_conversion_system_msg: |
   - Escape control characters: \n, \t, \r
   - Unicode escaping if needed: \uXXXX
 
-  Output ONLY valid JSON. No explanations.
+  Format your output as:
+  <o>
+  [JSON array or object]
+  </o>
+
+  Output ONLY valid JSON within <o> tags. No explanations.
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}]
@@ -95,6 +100,6 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   **Converted JSON Output:**
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Validate the conversion. Ensure all data is preserved and correctly typed.

@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import os
 import glob
@@ -31,7 +32,6 @@ class LogCaptureHandler(logging.Handler):
     def clear_logs(self):
         self.log_records.clear()
 
-# Set up logging with console output and optional capture BEFORE importing other modules
 log_capture_handler = LogCaptureHandler()
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +44,58 @@ logging.basicConfig(
 
 # Import after logging is configured
 from .data_flow import process_data
+
+# ---------------------------------------------------------------------------
+# Hardcoded defaults — lowest priority, overridden by config file then CLI args
+# ---------------------------------------------------------------------------
+DEFAULT_CONFIG = {
+    "default_provider": "local",
+    "default_model": "openai/gpt-oss-20b",
+    "default_endpoint": "v1/chat/completions",
+    "default_temperature": None,
+    "max_retries": 3,
+    "api_timeout": 600,
+    "api_retry_attempts": 3,
+    "api_retry_backoff": 2,
+    "parallel_agents": False,
+    "max_parallel_workers": 3,
+    "log_details": False,
+    "validate_placeholders": True,
+    "providers": {
+        "local": {
+            "base_url": "http://localhost:1234",
+            "endpoint": "v1/chat/completions",
+            "auth_header": None,
+            "request_format": "openai"
+        }
+    },
+    "api_keys": {},
+    "file_load": {
+        "folder": ".",
+        "search_pattern": "*.csv"
+    },
+    "file_save": {
+        "folder": "output/",
+        "file_extension": "txt"
+    },
+    "log_file": {
+        "folder": "logs/",
+        "file_extension": "log"
+    }
+}
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Merge override into base, recursively merging nested dicts.
+    Override values take precedence; nested dicts are merged rather than replaced."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
 
 def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
     """Validates that YAML contains all required message components."""
@@ -81,8 +133,16 @@ def validate_agent_config(config: dict):
         if agent_type not in config.get("agents", {}):
             raise ValueError(f"Missing required agent type: {agent_type}")
 
-        agents = config["agents"][agent_type]
-        agent_list = agents if isinstance(agents, list) else [agents]
+        agent_group = config["agents"][agent_type]
+
+        # Support role-group format: {"default_provider": "...", "agents": [...]}
+        if isinstance(agent_group, dict) and "agents" in agent_group:
+            inner = agent_group["agents"]
+            agent_list = inner if isinstance(inner, list) else [inner]
+        elif isinstance(agent_group, list):
+            agent_list = agent_group
+        else:
+            agent_list = [agent_group]
 
         for agent in agent_list:
             required_keys = ["name", "role"]
@@ -95,17 +155,22 @@ def validate_agent_config(config: dict):
     logging.info("Agent configuration validation passed")
 
 def load_config(config_path: str, conversion_path: str) -> dict:
-    """Loads the configuration from the specified JSON file."""
+    """Loads and merges configuration: defaults -> config file -> conversion YAML."""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    if not os.path.exists(conversion_path): # check to see if the conversion file is there
+    if not os.path.exists(conversion_path):
         raise FileNotFoundError(f"Conversion file not found: {conversion_path}")
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-        with open(conversion_path, "r") as y:  # load the yaml file
-            yaml_data = yaml.safe_load(y)
+        # Layer 1: hardcoded defaults
+        config = copy.deepcopy(DEFAULT_CONFIG)
 
+        # Layer 2: config file deep-merged over defaults
+        with open(config_path, 'r') as f:
+            config = _deep_merge(config, json.load(f))
+
+        # Layer 3: conversion YAML merged on top (top-level string fields)
+        with open(conversion_path, "r") as y:
+            yaml_data = yaml.safe_load(y)
 
         validate_conversion_yaml(yaml_data, conversion_path)
         config.update(yaml_data)
@@ -113,16 +178,16 @@ def load_config(config_path: str, conversion_path: str) -> dict:
         # Validate agent configuration structure
         validate_agent_config(config)
 
-        # Process API keys - replace ${ENV_VAR} placeholders with environment variables
+        # Process keys
         api_keys = config.get("api_keys", {})
         resolved_api_keys = {}
         for provider, key_value in api_keys.items():
             if isinstance(key_value, str) and key_value.startswith("${") and key_value.endswith("}"):
-                # Extract environment variable name
+                # Extract env variable name
                 env_var_name = key_value[2:-1]
                 env_value = os.getenv(env_var_name)
                 if env_value:
-                    # Strip whitespace/newlines from environment variable
+                    
                     resolved_api_keys[provider] = env_value.strip()
                     if config.get("log_details", False):
                         logging.info(f"Loaded API key for '{provider}' from environment variable {env_var_name}")
@@ -131,7 +196,7 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                         logging.warning(f"Environment variable {env_var_name} not set for provider '{provider}'")
                     resolved_api_keys[provider] = ""
             else:
-                # Use value directly from config (for fast usage), strip whitespace
+                # Use value directly from config (for fast usage)
                 resolved_api_keys[provider] = key_value.strip() if isinstance(key_value, str) else key_value
 
         config["api_keys"] = resolved_api_keys
@@ -148,30 +213,97 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                 }
             }
 
-        # Move global attributes to the agents
-        for agent_type in config["agents"]:
-            if type(config["agents"][agent_type]) is list:
-                for agent in config["agents"][agent_type]:
-                    agent["default_model"] = config["default_model"]
-                    agent["default_provider"] = config.get("default_provider", "local")
-                    agent["default_temperature"] = config["default_temperature"]
-                    agent["default_endpoint"] = config["default_endpoint"]
-                    agent["timeout"] = config.get("api_timeout", 600)
-                    agent["retry_attempts"] = config.get("api_retry_attempts", 3)
-                    agent["retry_backoff"] = config.get("api_retry_backoff", 2)
-                    agent["providers"] = config["providers"]
-                    agent["api_keys"] = config["api_keys"]
+        # Inject config into agents using 3-level hierarchy:
+        # global defaults -> role-level defaults -> agent-level values (agent wins)
+        global_provider = config.get("default_provider", "local")
+
+        for agent_type, agent_group in config["agents"].items():
+            # Unpack role-group format or flat format and extract role-level overrides
+            if isinstance(agent_group, dict) and "agents" in agent_group:
+                # Role-group format: {"default_provider": "...", "agents": [...]}
+                role_provider = agent_group.get("default_provider", global_provider)
+                role_temp_override = agent_group.get("default_temperature")
+                role_model_override = agent_group.get("default_model")
+                role_thinking_override = agent_group.get("default_thinking_budget")
+                role_effort_override = agent_group.get("default_reasoning_effort")
+                role_max_tokens_override = agent_group.get("default_max_tokens")
+                inner = agent_group["agents"]
+                agents_list = inner if isinstance(inner, list) else [inner]
+            elif isinstance(agent_group, list):
+                role_provider = global_provider
+                role_temp_override = None
+                role_model_override = None
+                role_thinking_override = None
+                role_effort_override = None
+                role_max_tokens_override = None
+                agents_list = agent_group
             else:
-                agent = config["agents"][agent_type]
-                agent["default_model"] = config["default_model"]
-                agent["default_provider"] = config.get("default_provider", "local")
-                agent["default_temperature"] = config["default_temperature"]
-                agent["default_endpoint"] = config["default_endpoint"]
+                # Single agent dict
+                role_provider = global_provider
+                role_temp_override = None
+                role_model_override = None
+                role_thinking_override = None
+                role_effort_override = None
+                role_max_tokens_override = None
+                agents_list = [agent_group]
+
+            provider_config = config["providers"].get(role_provider, {})
+
+            # Resolve default model: role-level explicit -> role provider's default_model -> global fallback
+            if role_model_override is not None:
+                role_default_model = role_model_override
+            elif "default_model" in provider_config:
+                role_default_model = provider_config["default_model"]
+            else:
+                role_default_model = config.get("default_model", "openai/gpt-oss-20b")
+
+            # Resolve default temperature: role-level explicit -> provider's default_temperature -> None (omit)
+            if role_temp_override is not None:
+                role_default_temperature = role_temp_override
+            elif "default_temperature" in provider_config:
+                role_default_temperature = provider_config["default_temperature"]
+            else:
+                role_default_temperature = None
+
+            # Resolve thinking_budget: role-level -> provider profile -> None (omit)
+            if role_thinking_override is not None:
+                role_default_thinking_budget = role_thinking_override
+            elif "default_thinking_budget" in provider_config:
+                role_default_thinking_budget = provider_config["default_thinking_budget"]
+            else:
+                role_default_thinking_budget = None
+
+            # Resolve reasoning_effort: role-level -> provider profile -> None (omit)
+            if role_effort_override is not None:
+                role_default_reasoning_effort = role_effort_override
+            elif "default_reasoning_effort" in provider_config:
+                role_default_reasoning_effort = provider_config["default_reasoning_effort"]
+            else:
+                role_default_reasoning_effort = None
+
+            # Resolve max_tokens: role-level -> provider profile -> None (provider handles its own default)
+            if role_max_tokens_override is not None:
+                role_default_max_tokens = role_max_tokens_override
+            elif "default_max_tokens" in provider_config:
+                role_default_max_tokens = provider_config["default_max_tokens"]
+            else:
+                role_default_max_tokens = None
+
+            for agent in agents_list:
+                agent["default_provider"] = role_provider
+                agent["default_model"] = role_default_model
+                agent["default_temperature"] = role_default_temperature
+                agent["default_thinking_budget"] = role_default_thinking_budget
+                agent["default_reasoning_effort"] = role_default_reasoning_effort
+                agent["default_max_tokens"] = role_default_max_tokens
                 agent["timeout"] = config.get("api_timeout", 600)
                 agent["retry_attempts"] = config.get("api_retry_attempts", 3)
                 agent["retry_backoff"] = config.get("api_retry_backoff", 2)
                 agent["providers"] = config["providers"]
                 agent["api_keys"] = config["api_keys"]
+
+            if isinstance(agent_group, dict) and "agents" in agent_group:
+                config["agents"][agent_type] = inner
 
         return config
     except json.JSONDecodeError as e:
@@ -197,7 +329,7 @@ def save_logs(log_data: dict, config: dict):
 
         # Generate a unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID for brevity
+        unique_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID
         log_filename = f"{timestamp}_{unique_id}.{log_extension}"
         log_filepath = os.path.join(log_folder, log_filename)
 
@@ -221,38 +353,55 @@ def save_logs(log_data: dict, config: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Universal Data Converter")
-    parser.add_argument("--config", type=str, default="udc01/default_config.json", help="Path to main configuration file")
-    parser.add_argument("--file", type=str, help="Specific file to load", default=None)
-    parser.add_argument("--folder", type=str, help="Folder to search for files", default=None)
-    parser.add_argument("--pattern", type=str, help="File search pattern (e.g., '*.csv')", default=None)
-    parser.add_argument("--output-folder", type=str, help="Folder to save output files", default=None)
-    parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml", help="path to conversion yaml")
-    parser.add_argument("--parallel-agents", action="store_true", help="Run validator agents in parallel (faster for cloud APIs, not recommended for local LLMs)")
+    parser.add_argument("--config", type=str, default="udc01/default_config.json",
+                        help="Path to configuration file (default: udc01/default_config.json)")
+    parser.add_argument("--conversion", type=str, default="samples/conversions/sales_invoice_conv.yaml",
+                        help="Path to conversion YAML file")
+    parser.add_argument("--file", type=str, default=None,
+                        help="Specific file to process (overrides config file_load.default_file)")
+    parser.add_argument("--folder", type=str, default=None,
+                        help="Folder to search for files (overrides config file_load.folder)")
+    parser.add_argument("--pattern", type=str, default=None,
+                        help="File search pattern, e.g. '*.csv' (overrides config file_load.search_pattern)")
+    parser.add_argument("--output-folder", type=str, default=None,
+                        help="Folder to save output files (overrides config file_save.folder)")
+    parser.add_argument("--parallel-agents", action="store_true",
+                        help="Run validator agents in parallel (overrides config parallel_agents)")
 
     args = parser.parse_args()
 
-    # Load configuration
+    # Load configuration: defaults -> config file -> conversion YAML
     try:
         config = load_config(args.config, args.conversion)
-        if args.output_folder != None:
-            config["file_save"]["folder"] = args.output_folder
-        if args.parallel_agents:
-            config["parallel_agents"] = True
-            logging.info("Parallel agent execution enabled via --parallel-agents flag")
-
     except (FileNotFoundError, ValueError) as e:
         logging.error(f"Error loading configuration: {e}")
         return
 
-    # Determine file(s) to process
-    files_to_process = []
+    # Apply CLI overrides — highest priority, override config file values
     if args.file:
-        files_to_process.append(args.file)
-    elif args.folder and args.pattern:
-        search_path = os.path.join(args.folder, args.pattern)
-        files_to_process = glob.glob(search_path)
+        config["file_load"]["default_file"] = args.file
+    if args.folder:
+        config["file_load"]["folder"] = args.folder
+    if args.pattern:
+        config["file_load"]["search_pattern"] = args.pattern
+    if args.output_folder:
+        config["file_save"]["folder"] = args.output_folder
+    if args.parallel_agents:
+        config["parallel_agents"] = True
+        logging.info("Parallel agent execution enabled via --parallel-agents flag")
+
+    # Determine file(s) to process — read from config after all overrides applied
+    files_to_process = []
+    default_file = config["file_load"].get("default_file")
+    if default_file:
+        files_to_process.append(default_file)
     else:
-        logging.warning("No file or folder/pattern specified.  Nothing to process.")
+        folder = config["file_load"].get("folder", ".")
+        pattern = config["file_load"].get("search_pattern", "*.csv")
+        files_to_process = glob.glob(os.path.join(folder, pattern))
+
+    if not files_to_process:
+        logging.warning("No files to process. Specify --file, set file_load.default_file in config, or use --folder with --pattern.")
         return
 
     # Process each file

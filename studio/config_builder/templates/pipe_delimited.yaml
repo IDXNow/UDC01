@@ -23,7 +23,13 @@ data_conversion_system_msg: |
   - Booleans: Use True/False or 1/0 as appropriate
   - Nulls: Represent as empty string between delimiters
 
-  Output ONLY the converted pipe-delimited data. No explanations.
+  Format your output as:
+  <o>
+  [header row]
+  [data rows]
+  </o>
+
+  Output ONLY the converted pipe-delimited data within <o> tags. No explanations.
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}]
@@ -92,6 +98,6 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   **Converted Pipe-Delimited Output:**
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Validate the conversion. Return verification XML.

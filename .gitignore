@@ -17,6 +17,7 @@ ENV/
 *.swo
 *~
 .Refs/
+.claude/
 
 # Output and runtime folders
 logs/

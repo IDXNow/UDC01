@@ -55,14 +55,14 @@ data_conversion_system_msg: |
   7. If shipping address equals billing address, set shipping_address to null
 
   OUTPUT FORMAT:
-  Wrap output in <output> tags with valid JSON only:
+  Wrap output in <o> tags with valid JSON only:
 
-  <output>
+  <o>
   { ... }
-  </output>
+  </o>
 
   CRITICAL:
-  - Output ONLY valid JSON inside <output> tags
+  - Output ONLY valid JSON inside <o> tags
   - No text or commentary outside tags
   - No markdown code blocks
   - Numbers without quotes (except nulls)
@@ -81,7 +81,7 @@ data_conversion_request_msg: |
   3. Use null for missing fields
   4. Numbers without currency symbols or quotes
   5. Combine addresses into single lines
-  6. Output valid JSON in <output> tags only
+  6. Output valid JSON in <o> tags only
 
 
 data_verification_system_msg: |
@@ -122,7 +122,7 @@ data_verification_request_msg: |
 data_validation_system_msg: |
   You are a validation agent.  Verify extracted JSON matches the source document.
 
-  Compare <data> (source) with <output> (extracted JSON) and check:
+  Compare <data> (source) with <o> (extracted JSON) and check:
 
   SCHEMA CHECKS:
   1. Valid parseable JSON
@@ -155,7 +155,7 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   Extracted JSON:
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Verify:
   1. Valid JSON structure

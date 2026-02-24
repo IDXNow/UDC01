@@ -6,7 +6,7 @@ This guide explains how to configure and use cloud-based LLM providers (OpenAI, 
 
 The system now supports multiple LLM providers:
 - **local**: Local LLM server (default)
-- **openai**: OpenAI API (GPT-4, GPT-3.5, etc.)
+- **openai**: OpenAI API (GPT-5.2, GPT-4.1, etc.)
 - **anthropic**: Anthropic API (Claude models)
 - **google**: Google AI API (Gemini models)
 
@@ -202,7 +202,7 @@ This can be useful for debugging provider authentication issues and API errors.
 
   "providers": {
     "local": {
-      "base_url": "http://localhost:1235",
+      "base_url": "http://localhost:1234",
       "endpoint": "v1/chat/completions",
       "auth_header": null,
       "request_format": "openai"
@@ -260,7 +260,7 @@ This can be useful for debugging provider authentication issues and API errors.
       "name": "Ted Sagan",
       "role": "convert",
       "provider": "anthropic",
-      "model": "claude-3-5-sonnet-20241022",
+      "model": "claude-3-5-sonnet",
       "temperature": 0.2
     },
     "data_validator": [
@@ -268,7 +268,7 @@ This can be useful for debugging provider authentication issues and API errors.
         "name": "Charles Turing",
         "role": "validate",
         "provider": "google",
-        "model": "gemini-2.0-flash-exp"
+        "model": "gemini-2.5-flash"
       },
       {
         "name": "Macy Hopper",
@@ -299,8 +299,8 @@ This can be useful for debugging provider authentication issues and API errors.
 ### Google Gemini
 - `gemini-2.5-flash-lite`
 - `gemini-2.5-flash`
-- `gemini-2.5-pro`
 - `gemini-3-pro-preview`
+- `gemini-3-flash-preview`
 
 
 ## Testing Your Configuration

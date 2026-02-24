@@ -121,9 +121,6 @@ class LocalUDCClient(UDCClient):
             self.validate_func = validate_output_2of3
             self.convert_func = perform_conversion
 
-            # DEBUG: Show where udc01 is being imported from
-            # self.logger.info(f"Successfully loaded UDC01 package from: {udc01.__file__}")
-            # self.logger.info(f"Python path: {udc01.__path__}")
         except ImportError as e:
             raise ImportError(
                 f"Failed to import udc01 package: {e}. "

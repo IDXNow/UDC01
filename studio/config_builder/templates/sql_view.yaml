@@ -30,7 +30,12 @@ data_conversion_system_msg: |
   - Escape single quotes by doubling them ('')
   - Use proper indentation for readability
 
-  Output ONLY the SQL CREATE VIEW statement. No explanations.
+  Format your output as:
+  <o>
+  [SQL CREATE VIEW statement]
+  </o>
+
+  Output ONLY the SQL CREATE VIEW statement within <o> tags. No explanations.
 
 data_conversion_request_msg: |
   [Current time: {<!--DateTime-->}] [Try Index:{<!--RunIndex-->}]
@@ -100,6 +105,6 @@ data_validation_request_msg: |
   <data>{<!--Data-->}</data>
 
   **Generated SQL View:**
-  <output>{<!--Output-->}</output>
+  <o>{<!--Output-->}</o>
 
   Validate that the SQL view correctly represents the data structure.

@@ -66,8 +66,8 @@ Please incorporate these specific requirements into your analysis. Focus on extr
 5. **Sample Values**: For each field, provide 2-3 representative example values
 6. **Structure Notes**: Any hierarchies, relationships, or special formatting
 {custom_section}
-Output ONLY valid JSON within <output> tags:
-<output>
+Output ONLY valid JSON within <o> tags:
+<o>
 {{
   "format": "pipe-delimited|csv|json|xml|unstructured|...",
   "delimiter": "|",
@@ -88,7 +88,7 @@ Output ONLY valid JSON within <output> tags:
   "row_count_sample": 100,
   "notes": "Any additional observations"
 }}
-</output>
+</o>
 
 Be precise and thorough. Extract actual values from the data."""
 
@@ -96,7 +96,7 @@ Be precise and thorough. Extract actual values from the data."""
 <previous_conversion_notes>{<!--PreviousConversionNotes-->}</previous_conversion_notes>
 <data>{<!--Data-->}</data>
 
-Remember to output ONLY the JSON structure within <output> tags."""
+Remember to output ONLY the JSON structure within <o> tags."""
 
         return profiling_config
 
@@ -113,8 +113,8 @@ Remember to output ONLY the JSON structure within <output> tags."""
         try:
             content = result.get("result", {}).get("content", "")
 
-            # Extract json from <output> tags
-            match = re.search(r'<output>\s*(\{.*?\})\s*</output>', content, re.DOTALL)
+            # Extract json from <o> tags
+            match = re.search(r'<o>\s*(\{.*?\})\s*</o>', content, re.DOTALL)
             if match:
                 profile_json = match.group(1)
                 profile = json.loads(profile_json)
@@ -125,7 +125,7 @@ Remember to output ONLY the JSON structure within <output> tags."""
                 json_match = re.search(r'\{.*\}', content, re.DOTALL)
                 if json_match:
                     profile = json.loads(json_match.group(0))
-                    self.logger.warning("Found JSON without <output> tags")
+                    self.logger.warning("Found JSON without <o> tags")
                     return profile
 
             self.logger.error("No valid JSON found in result")

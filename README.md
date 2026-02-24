@@ -4,6 +4,9 @@
 <div>
   <h2>Leveraging LLMs for Intelligent Data Transformation</h2>
 </div>
+<div align="center">
+  <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/UDC01-Img0010.jpg" alt="UDC01 - Universal data Converter">
+</div>
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -27,6 +30,7 @@
   - [Performance Optimization for Cloud APIs](#performance-optimization-for-cloud-apis)
   - [Detailed Logging](#detailed-logging)
 - [Configuration Files](#configuration-files)
+- [Configuration Hierarchy Guide](CONFIGURATION.md)
 - [License](#license)
 - [Contact & Community](#contact--community)
 
@@ -444,28 +448,28 @@ The `default_config.json` includes provider definitions for all supported servic
 
 ### Per-Agent Provider Selection
 
-You can specify which provider each agent can use:
+Provider, model, and temperature can be set at three levels — global, role-group, or individual agent — with the most specific level always winning. See the [**Configuration Hierarchy Guide**](CONFIGURATION.md) for full details and examples.
+
+Quick example — mixing providers across agents:
 
 ```json
 {
+  "default_provider": "google",
+
   "agents": {
     "data_conversion": {
       "name": "Ted Sagan",
+      "role": "convert",
       "provider": "anthropic",
-      "model": "claude-sonnet-4-5",
-      "temperature": 1
+      "model": "claude-sonnet-4-5"
     },
-    "data_verifier": [
-      {
-        "name": "Jane Dirac",
-        "provider": "openai",
-        "model": "gpt-5-mini"
-      },
-      {
-        "name": "Chris Einstein"
-        // Uses default_provider (local)
-      }
-    ]
+    "data_verifier": {
+      "default_provider": "anthropic",
+      "agents": [
+        { "name": "Jane Dirac",    "role": "verify" },
+        { "name": "Chris Einstein","role": "verify", "provider": "openai", "model": "gpt-4o-mini" }
+      ]
+    }
   }
 }
 ```
@@ -511,88 +515,28 @@ For complete cloud provider documentation, see [CLOUD_PROVIDERS.md](CLOUD_PROVID
 ### Main Configuration (JSON)
 
 The main configuration file (`default_config.json`) contains settings for:
-- API endpoints and model parameters
-- Cloud provider configurations
-- Agent definitions and roles with per-agent provider selection
+- Provider connections and model defaults
+- Agent definitions and role assignments
 - File paths and patterns
-- Retry limits and timeout settings
-- Performance tuning (parallelism, timeouts, retries)
+- Retry limits, timeouts, and parallelism
 - Logging configuration
 
-Example:
-```json
-{
-  "default_provider": "local",
-  "default_model": "granite-3.1-8b-instruct",
-  "default_temperature": 1,
-  "max_retries": 3,
-  "api_timeout": 600,
-  "api_retry_attempts": 3,
-  "api_retry_backoff": 2,
-  "parallel_agents": true,
-  "max_parallel_workers": 2,
-  "log_details": true,
+For a full explanation of how model, provider, and temperature can be set at the global, role-group, or individual agent level, see the [**Configuration Hierarchy Guide**](CONFIGURATION.md).
 
-  "providers": {
-    "local": {
-      "base_url": "http://localhost:1234",
-      "endpoint": "v1/chat/completions",
-      "request_format": "openai"
-    },
-    "openai": {
-      "base_url": "https://api.openai.com",
-      "endpoint": "v1/chat/completions",
-      "auth_header": "Authorization",
-      "auth_prefix": "Bearer"
-    }
-  },
+**Top-level settings:**
 
-  "api_keys": {
-    "openai": "${OPENAI_API_KEY}",
-    "anthropic": "${ANTHROPIC_API_KEY}",
-    "google": "${GOOGLE_API_KEY}"
-  },
+| Setting | Description |
+|---------|-------------|
+| `default_provider` | Provider used by all agents unless overridden |
+| `max_retries` | Max conversion retry attempts (default: 3) |
+| `api_timeout` | API call timeout in seconds (default: 600) |
+| `api_retry_attempts` | Retry attempts per API call (default: 3) |
+| `api_retry_backoff` | Exponential backoff multiplier (default: 2) |
+| `parallel_agents` | Run verifier/validator agents in parallel (default: false) |
+| `max_parallel_workers` | Max concurrent agent threads (default: 2) |
+| `log_details` | Include detailed logs in output files (default: false) |
 
-  "file_save": {
-    "folder": "output/",
-    "file_extension": "txt"
-  },
-
-  "agents": {
-    "data_verifier": [
-      {
-        "name": "Jane Dirac",
-        "role": "verify",
-        "instructions": "data_verification_system_msg"
-      }
-    ],
-    "data_conversion": {
-      "name": "Ted Sagan",
-      "role": "convert",
-      "provider": "anthropic",
-      "model": "claude-3-5-sonnet-20241022",
-      "temperature": 1.0
-    }
-  }
-}
-```
-
-**Configuration Options:**
-
-*Provider Settings:*
-- `default_provider`: Default LLM provider for all agents (default: "local")
-- `providers`: Provider-specific API configurations
-- `api_keys`: API keys with environment variable placeholders
-
-*Performance Settings:*
-- `api_timeout`: Timeout in seconds for API calls (default: 600)
-- `api_retry_attempts`: Number of retry attempts for failed API calls (default: 3)
-- `api_retry_backoff`: Exponential backoff multiplier for retries (default: 2)
-- `parallel_agents`: Enable parallel execution of validators (default: false)
-- `max_parallel_workers`: Maximum concurrent agent threads (default: 2)
-
-*Logging Settings:*
-- `log_details`: Include detailed system logs in output files (default: false)
+**Provider profile settings** (`providers.<name>`)  — see [CONFIGURATION.md](CONFIGURATION.md#provider-profiles) for the full field list, including `default_model` and `default_temperature`.
 
 ### Conversion Configuration (YAML)
 
