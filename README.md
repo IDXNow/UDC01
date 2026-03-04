@@ -5,7 +5,7 @@
   <h2>AI-Powered Data Transformation That Actually Works</h2>
 </div>
 <div align="center">
-  <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/UDC01-Img0010.jpg" alt="UDC01 - Universal data Converter">
+  <img width="90%" src="https://github.com/IDXNow/UDC01/blob/main/img/UDC01-Img00011.jpg" alt="UDC01 - Universal data Converter">
 </div>
 
 ## Table of Contents
