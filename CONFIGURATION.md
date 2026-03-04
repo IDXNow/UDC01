@@ -1,6 +1,6 @@
 # UDC01 Configuration Guide
 
-This guide explains how the configuration system works, where settings can be placed, and how values override each other across the configuration hierarchy.
+Configuration is where you shape UDC01 to your specific environment - which models run which roles, how aggressively to retry failed conversions, whether to run agents in parallel. This guide explains the full configuration system: what each file controls, how settings override each other, and how to take advantage of the three-level hierarchy that makes UDC01 both flexible and predictable.
 
 ---
 
@@ -10,9 +10,9 @@ This guide explains how the configuration system works, where settings can be pl
 - [Runtime Priority: Which Value Wins?](#runtime-priority-which-value-wins)
 - [Provider Profiles](#provider-profiles)
 - [Agent Configuration Hierarchy](#agent-configuration-hierarchy)
-  - [Level 1 — Global Default](#level-1--global-default)
-  - [Level 2 — Role-Group Default](#level-2--role-group-default)
-  - [Level 3 — Individual Agent](#level-3--individual-agent)
+  - [Level 1 - Global Default](#level-1--global-default)
+  - [Level 2 - Role-Group Default](#level-2--role-group-default)
+  - [Level 3 - Individual Agent](#level-3--individual-agent)
 - [Temperature: An Optional Setting](#temperature-an-optional-setting)
 - [Thinking & Reasoning](#thinking--reasoning)
 - [Complete Example](#complete-example)
@@ -22,12 +22,14 @@ This guide explains how the configuration system works, where settings can be pl
 
 ## Configuration Files Overview
 
-UDC01 uses two configuration files:
+UDC01 uses two configuration files, each with a distinct responsibility.
 
 | File | Format | Purpose |
 |------|--------|---------|
 | `udc01/default_config.json` (or `--config` path) | JSON | Provider connections, agent definitions, file paths, runtime settings |
 | Your conversion YAML (e.g. `samples/conversions/sales_invoice_conv.yaml`) | YAML | LLM prompts and instructions for a specific conversion job |
+
+The JSON config defines *who* does the work and *how the system behaves*. The YAML defines *what the agents are told to do* for a particular data format. Keeping these separate means you can run the same conversion instructions against different provider configurations - or the same provider configuration against different conversion types - without duplication.
 
 Specify which files to use at startup:
 ```bash
@@ -38,12 +40,12 @@ python udc01.py --config "my_config.json" --conversion "my_conversion.yaml"
 
 ## Runtime Priority: Which Value Wins?
 
-Settings are applied in layers, each one overriding the previous. **Higher priority wins.**
+Settings are applied in layers, each one overriding the previous. **Higher priority wins.** This layered approach means you can establish sensible defaults in your config file and override specific settings at runtime without maintaining multiple copies of the same file.
 
 ```
-1. Code defaults       (lowest)  — built-in fallbacks, always present
-2. Config file                   — your JSON config, merged over code defaults
-3. CLI arguments       (highest) — --file, --folder, --pattern, --output-folder, --parallel-agents
+1. Code defaults       (lowest)  - built-in fallbacks, always present
+2. Config file                   - your JSON config, merged over code defaults
+3. CLI arguments       (highest) - --file, --folder, --pattern, --output-folder, --parallel-agents
 ```
 
 **Example:**
@@ -53,7 +55,7 @@ The config file sets `"folder": "data/"`. You run with `--folder "inputs/"`. The
 
 ## Provider Profiles
 
-The `providers` section defines connection details for each LLM service. Each provider profile can also set its own `default_model` and `default_temperature`, which become the defaults for any agent that uses that provider.
+The `providers` section is where you define connection details for each LLM service you want UDC01 to talk to. Each profile can also declare its own `default_model` and `default_temperature` - these become the baseline for any agent that uses that provider, which means you set model preferences once per provider rather than on every individual agent.
 
 ```json
 "providers": {
@@ -106,7 +108,7 @@ The `providers` section defines connection details for each LLM service. Each pr
 
 ## Agent Configuration Hierarchy
 
-Model, provider, and temperature can be set at **three levels**. The most specific level wins.
+This is the heart of UDC01's configuration flexibility. Model, provider, and temperature can be set at **three levels**, and the most specific level always wins. The hierarchy exists because different roles often have different needs - you might want a frontier model doing the conversion, a faster/cheaper model doing verification, and the freedom to override that for one specific agent without touching anything else.
 
 ```
 Level 1: Global default         (default_provider at config top level)
@@ -114,9 +116,9 @@ Level 2: Role-group default     (default_provider on an agent group)
 Level 3: Individual agent       (provider / model / temperature on one agent)
 ```
 
-### Level 1 — Global Default
+### Level 1 - Global Default
 
-Set at the top of your config. All agents use this provider unless overridden.
+Set at the top of your config. Every agent uses this provider unless something more specific overrides it. This is your baseline - the provider you use most of the time.
 
 ```json
 {
@@ -128,9 +130,9 @@ The selected provider's `default_model` and `default_temperature` (from the `pro
 
 ---
 
-### Level 2 — Role-Group Default
+### Level 2 - Role-Group Default
 
-Wrap an agent group in an object with `default_provider` (and optionally `default_model` / `default_temperature`) to override the global default for that entire role.
+When all agents in a role should share a provider and model, wrap the group in an object with `default_provider` (and optionally `default_model` / `default_temperature`). This overrides the global default for every agent in that role, without requiring you to set it individually on each one.
 
 ```json
 "agents": {
@@ -167,9 +169,9 @@ The flat array format (without a wrapper object) also works and simply inherits 
 
 ---
 
-### Level 3 — Individual Agent
+### Level 3 - Individual Agent
 
-Set `provider`, `model`, and/or `temperature` directly on one agent to override everything above it.
+When one specific agent needs different settings - a different model for a critical conversion step, a lower temperature for a validation agent, a completely different provider - set it directly on that agent. This overrides everything above it.
 
 ```json
 "agents": {
@@ -187,7 +189,7 @@ Set `provider`, `model`, and/or `temperature` directly on one agent to override 
         "provider": "openai",
         "model": "gpt-4o",
         "temperature": 0.5
-        // fully overrides — uses OpenAI gpt-4o at temperature 0.5
+        // fully overrides - uses OpenAI gpt-4o at temperature 0.5
       }
     ]
   }
@@ -206,7 +208,7 @@ Set `provider`, `model`, and/or `temperature` directly on one agent to override 
 
 ## Temperature: An Optional Setting
 
-Temperature is **not required** and intentionally omitted from the top-level config. Some models (such as OpenAI o-series reasoning models) reject the `temperature` parameter entirely — if it is not set at any level, UDC01 simply omits it from the API request.
+Temperature is not required at the top level, and that's intentional. Some models - particularly OpenAI's o-series reasoning models - reject the `temperature` parameter entirely. If temperature is not set at any level in the hierarchy, UDC01 simply omits it from the API request, which is exactly what those models need.
 
 **Resolution order for temperature:**
 
@@ -236,19 +238,19 @@ To set a different temperature for one specific agent:
 
 ## Thinking & Reasoning
 
-Three providers support extended thinking or reasoning modes. Each uses a different mechanism, but all follow the same 3-level hierarchy (provider profile -> role-group -> individual agent).
+Three providers support extended thinking or reasoning modes - and each uses a different mechanism. UDC01 handles the differences transparently, so the same three-level hierarchy (provider profile → role-group → individual agent) applies to all of them.
 
 ### Provider support
 
 | Provider | Parameter | Values | Effect on temperature |
 |----------|-----------|--------|-----------------------|
-| **Anthropic** | `thinking_budget` | integer ≥ 1024 (tokens) | **Replaced** — forced to 1 by the API when thinking is on |
-| **Google Gemini** | `thinking_budget` | integer, `0` (off), `-1` (dynamic) | **Coexists** — temperature still applies |
-| **OpenAI** (o-series) | `reasoning_effort` | `"low"`, `"medium"`, `"high"` | **Replaced** — o-series never supported temperature |
+| **Anthropic** | `thinking_budget` | integer ≥ 1024 (tokens) | **Replaced** - forced to 1 by the API when thinking is on |
+| **Google Gemini** | `thinking_budget` | integer, `0` (off), `-1` (dynamic) | **Coexists** - temperature still applies |
+| **OpenAI** (o-series) | `reasoning_effort` | `"low"`, `"medium"`, `"high"` | **Replaced** - o-series never supported temperature |
 
 ### Setting thinking_budget (Anthropic & Google)
 
-**In the provider profile** — applies to all agents using that provider:
+**In the provider profile** - applies to all agents using that provider:
 ```json
 "anthropic": {
   ...
@@ -260,7 +262,7 @@ Three providers support extended thinking or reasoning modes. Each uses a differ
 }
 ```
 
-**In a role-group** — applies to all agents in that role:
+**In a role-group** - applies to all agents in that role:
 ```json
 "data_conversion": {
   "default_provider": "anthropic",
@@ -269,7 +271,7 @@ Three providers support extended thinking or reasoning modes. Each uses a differ
 }
 ```
 
-**On an individual agent** — overrides everything above:
+**On an individual agent** - overrides everything above:
 ```json
 { "name": "Ted Sagan", "role": "convert", "thinking_budget": 12000 }
 ```
@@ -294,13 +296,13 @@ Three providers support extended thinking or reasoning modes. Each uses a differ
 { "name": "Ted Sagan", "role": "convert", "provider": "openai", "model": "o3", "reasoning_effort": "high" }
 ```
 
-When `reasoning_effort` is set, `temperature` is automatically omitted from the request — these two parameters are mutually exclusive on OpenAI o-series models.
+When `reasoning_effort` is set, `temperature` is automatically omitted from the request - these two parameters are mutually exclusive on OpenAI o-series models.
 
 ### max_tokens
 
 `max_tokens` controls the maximum number of output tokens per API call. It follows the same 3-level hierarchy and is supported by all three providers.
 
-**In the provider profile** — applies to all agents using that provider:
+**In the provider profile** - applies to all agents using that provider:
 ```json
 "anthropic": {
   ...
@@ -329,7 +331,7 @@ If `max_tokens` is not set at any level, each provider falls back to its own bui
 
 ## Complete Example
 
-This example shows all three levels in action:
+This example shows all three levels working together - a global default of Google Gemini, a verifier group that runs on Anthropic, and individual agent overrides for cases where a specific model or provider makes more sense. Read the inline comments to follow the resolution logic.
 
 ```json
 {
@@ -434,27 +436,29 @@ This example shows all three levels in action:
 }
 ```
 
-> **Note:** JSON does not support `//` comments. The comments above are for illustration only — remove them before using this as an actual config file.
+> **Note:** JSON does not support `//` comments. The comments above are for illustration only - remove them before using this as an actual config file.
 
 ---
 
 ## Quick Reference
 
+Use these tables as a quick lookup when building or debugging configurations.
+
 ### What can be set at each level?
 
 | Setting | Provider Profile | Role-Group | Individual Agent |
 |---------|:---:|:---:|:---:|
-| `default_model` | Yes | Yes | — |
-| `default_temperature` | Yes | Yes | — |
-| `default_thinking_budget` | Yes | Yes | — |
-| `default_reasoning_effort` | Yes | Yes | — |
-| `default_max_tokens` | Yes | Yes | — |
-| `model` | — | — | Yes |
-| `provider` | — | — | Yes |
-| `temperature` | — | — | Yes |
-| `thinking_budget` | — | — | Yes |
-| `reasoning_effort` | — | — | Yes |
-| `max_tokens` | — | — | Yes |
+| `default_model` | Yes | Yes | - |
+| `default_temperature` | Yes | Yes | - |
+| `default_thinking_budget` | Yes | Yes | - |
+| `default_reasoning_effort` | Yes | Yes | - |
+| `default_max_tokens` | Yes | Yes | - |
+| `model` | - | - | Yes |
+| `provider` | - | - | Yes |
+| `temperature` | - | - | Yes |
+| `thinking_budget` | - | - | Yes |
+| `reasoning_effort` | - | - | Yes |
+| `max_tokens` | - | - | Yes |
 
 ### Resolution order (first match wins)
 

@@ -1,11 +1,11 @@
 # Cloud Provider Configuration Guide
 
-This guide explains how to configure and use cloud-based LLM providers (OpenAI, Anthropic Claude, Google Gemini) in addition to local models.
+UDC01 starts with a local LLM server by default, but its real power comes from mixing providers - using Claude for complex conversions, Gemini for fast validation, GPT for verification, or any combination your workflow calls for. This guide covers how to connect each cloud provider, keep your credentials secure, and troubleshoot the problems that actually come up.
 
 ## Overview
 
-The system now supports multiple LLM providers:
-- **local**: Local LLM server (default)
+UDC01 speaks to four provider types out of the box:
+- **local**: Your local LLM server (default, no API key required)
 - **openai**: OpenAI API (GPT-5.2, GPT-4.1, etc.)
 - **anthropic**: Anthropic API (Claude models)
 - **google**: Google AI API (Gemini models)
@@ -14,7 +14,7 @@ The system now supports multiple LLM providers:
 
 ### 1. Provider Definitions
 
-The `providers` section in your config file defines the connection details for each provider:
+The `providers` section in your config file defines the connection details for each provider. UDC01 handles the payload format differences between providers automatically - you just tell it which format to use.
 
 ```json
 {
@@ -54,11 +54,11 @@ The `providers` section in your config file defines the connection details for e
 
 ### 2. API Keys Configuration
 
-API keys can be configured in two ways:
+API keys can be configured in two ways. We recommend environment variables - they keep credentials out of your config files and out of version control.
 
 #### Option A: Environment Variables (Recommended)
 
-Set environment variables and reference them in the config:
+Store the actual key in your environment and reference it by name in the config:
 
 ```json
 {
@@ -95,7 +95,7 @@ export GOOGLE_API_KEY="..."
 
 #### Option B: Direct in Config (Fast Usage)
 
-For quick testing, you can put keys directly in the config:
+For quick local testing, you can put keys directly in the config. Just don't commit that file.
 
 ```json
 {
@@ -107,11 +107,11 @@ For quick testing, you can put keys directly in the config:
 }
 ```
 
-⚠️ **Warning**: It's not recommended to commit API keys to version control! Add config files with keys to `.gitignore`.
+⚠️ **Warning**: Add config files containing API keys to `.gitignore` before you run your first commit. It's much easier to do this before than after.
 
 ### 3. Setting Default Provider
 
-Set a global default provider that all agents inherit:
+The global default provider applies to every agent that doesn't have a more specific override. Start here, then refine per-role or per-agent as needed.
 
 ```json
 {
@@ -124,7 +124,7 @@ Set a global default provider that all agents inherit:
 
 ### Using Default Provider
 
-Agents without an explicit `provider` field use the `default_provider`:
+Any agent without an explicit `provider` field inherits from `default_provider`. This lets you configure the common case once and only specify exceptions.
 
 ```json
 {
@@ -142,7 +142,7 @@ Agents without an explicit `provider` field use the `default_provider`:
 
 ### Per-Agent Provider Override
 
-Override the provider for specific agents:
+When you need a specific agent to use a different provider - say, a frontier model for the conversion step and a faster model for verification - override it directly on the agent.
 
 ```json
 {
@@ -172,9 +172,11 @@ Override the provider for specific agents:
 }
 ```
 
+For the full picture on how provider, model, and temperature interact across global, role-group, and individual agent levels, see the [**Configuration Hierarchy Guide**](CONFIGURATION.md).
+
 ## Logging Configuration
 
-To include detailed system logs (INFO, WARNING, ERROR messages) in the output log files, add:
+When you're setting up a new provider or debugging an unexpected error, detailed logging gives you the full picture of what each agent is doing and what each API call returns.
 
 ```json
 {
@@ -182,13 +184,13 @@ To include detailed system logs (INFO, WARNING, ERROR messages) in the output lo
 }
 ```
 
-When enabled, the log file will include a `system_logs` section with all logging output:
+When enabled, the log file includes a `system_logs` section with:
 - Timestamps for each log entry
 - Log level (INFO, WARNING, ERROR)
 - Module, function, and line number
 - Full error messages from API calls
 
-This can be useful for debugging provider authentication issues and API errors.
+This is the first thing to enable when tracking down authentication issues or provider-side errors.
 
 ## Complete Example Configuration
 
@@ -305,48 +307,52 @@ This can be useful for debugging provider authentication issues and API errors.
 
 ## Testing Your Configuration
 
+Work from the inside out - start with what you know is working and add providers one at a time.
+
 1. **Test local provider first** (ensure your local server is running)
 2. **Add one cloud provider** (set environment variable with API key)
 3. **Run a simple conversion** to verify connectivity
 4. **Check logs** for provider information and any errors
 
-The system logs will show which provider and model each agent uses:
+The system logs confirm which provider and model each agent used:
 ```
 Agent Ted Sagan (anthropic/claude-4-5-sonnet) completed in 2.34s
 ```
 
-## Troubleshooting
+## Things Worth Knowing Going In
 
-### "Provider 'X' not found in configuration"
-- Ensure the provider is defined in the `providers` section
-- Check for typos in provider names
+These are the issues that come up most often when connecting cloud providers for the first time. Each one has a straightforward fix.
 
-### "No API key found for provider 'X'"
-- Verify environment variable is set correctly
-- Check that the variable name in config matches the environment variable name
-- Ensure no extra quotes or spaces in environment variable value
+**"Provider 'X' not found in configuration"**
 
-### Authentication errors
-- Verify API key is correct and active
-- Check that you have credits/quota remaining with the provider
-- Ensure the auth_header and auth_prefix match the provider's requirements
+The provider name in the agent config doesn't match a key in the `providers` section. Check for typos - provider names are case-sensitive. Confirm the provider you're referencing is defined in the `providers` block.
 
-### Request format errors
-- The system automatically handles format differences
-- Check that `request_format` in provider config matches the provider type
+**"No API key found for provider 'X'"**
+
+Three things to check: the environment variable is set in the same shell session where you're running UDC01 (not a different terminal), the variable name in the config's `api_keys` section matches the actual environment variable name exactly, and there are no leading/trailing quotes in the environment variable value.
+
+**Authentication errors (401, 403)**
+
+The API key itself is wrong, expired, or has insufficient permissions. Verify the key is correct and active on the provider's dashboard, and check that you haven't hit quota limits or exhausted your balance.
+
+**Request format errors**
+
+UDC01 handles format differences automatically - but only if `request_format` in the provider config matches the provider type (`openai`, `anthropic`, or `google`). If you're seeing unexpected request errors, this is the first field to double-check.
 
 ## Migration from Legacy Configuration
 
-Old configurations without `providers` section will automatically fall back to legacy mode with a default local provider.  To enable multi-provider support:
+Old configurations without a `providers` section automatically fall back to legacy mode with a default local provider. To enable multi-provider support, add four things to your config:
 
-1. Add the `providers` section to your config
-2. Add the `api_keys` section
-3. Add `default_provider` field
-4. Optionally add `provider` field to individual agents
+1. The `providers` section
+2. The `api_keys` section
+3. A `default_provider` field
+4. Optionally, `provider` fields on individual agents
 
-The system is backward compatible and will work with old configurations.
+The system is fully backward compatible - your existing configs continue to work exactly as before.
 
-## Security Best Practices
+## Security Practices
+
+These aren't optional ceremony - they're the habits that prevent API key exposure in the real world.
 
 1. ✅ **Use environment variables** for API keys
 2. ✅ **Add config files with keys to `.gitignore`**
