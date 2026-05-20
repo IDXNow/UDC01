@@ -577,9 +577,9 @@ data_validation_system_msg: |
 ---
 
 ## License
-Copyright (c) 2026 Steve Wint / I D X
+Copyright (c) 2026 IDXNow
 
-This project is licensed under the [MIT License](https://github.com/IDXNow/UDC01/blob/main/LICENSE) - see the LICENSE file for details.
+This project is licensed under the [Business Source License 1.1](https://github.com/IDXNow/UDC01/blob/main/LICENSE). The Change License is the MIT License, effective on the Change Date specified in the LICENSE file.
 
 ---
 
