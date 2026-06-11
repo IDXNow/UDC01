@@ -46,7 +46,7 @@ logging.basicConfig(
 from .data_flow import process_data
 
 # ---------------------------------------------------------------------------
-# Hardcoded defaults — lowest priority, overridden by config file then CLI args
+# Hardcoded defaults - lowest priority, overridden by config file then CLI args
 # ---------------------------------------------------------------------------
 DEFAULT_CONFIG = {
     "default_provider": "local",
@@ -99,14 +99,19 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
     """Validates that YAML contains all required message components."""
+    verification_enabled = yaml_data.get("verification", {}).get("enabled", True)
+
     required_keys = [
         "data_conversion_system_msg",
         "data_conversion_request_msg",
-        "data_verification_system_msg",
-        "data_verification_request_msg",
         "data_validation_system_msg",
-        "data_validation_request_msg"
+        "data_validation_request_msg",
     ]
+    if verification_enabled is not False:
+        required_keys += [
+            "data_verification_system_msg",
+            "data_verification_request_msg",
+        ]
 
     missing_keys = [key for key in required_keys if key not in yaml_data]
 
@@ -123,7 +128,7 @@ def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
                 f"Conversion YAML '{conversion_path}' has empty or invalid value for '{key}'"
             )
 
-    logging.info(f"Conversion YAML validation passed for {conversion_path}")
+    logging.debug(f"Conversion YAML validation passed for {conversion_path}")
 
 def validate_agent_config(config: dict):
     """Validates agent configuration structure."""
@@ -152,7 +157,8 @@ def validate_agent_config(config: dict):
                     f"Agent '{agent.get('name', 'unknown')}' in '{agent_type}' missing required keys: {missing}"
                 )
 
-    logging.info("Agent configuration validation passed")
+    if config.get("log_details", False):
+        logging.info("Agent configuration validation passed")
 
 def load_config(config_path: str, conversion_path: str) -> dict:
     """Loads and merges configuration: defaults -> config file -> conversion YAML."""
@@ -341,7 +347,8 @@ def save_logs(log_data: dict, config: dict):
         with open(log_filepath, "w") as log_file:
             json.dump(log_data, log_file, indent=4)
 
-        logging.info(f"Log data saved to: {log_filepath}")
+        if config.get("log_details", False):
+            logging.info(f"Log data saved to: {log_filepath}")
 
         # Clear captured logs after saving to avoid accumulation across multiple files
         if config.get("log_details", False):
@@ -377,7 +384,7 @@ def main():
         logging.error(f"Error loading configuration: {e}")
         return
 
-    # Apply CLI overrides — highest priority, override config file values
+    # Apply CLI overrides - highest priority, override config file values
     if args.file:
         config["file_load"]["default_file"] = args.file
     if args.folder:
@@ -388,12 +395,14 @@ def main():
         config["file_save"]["folder"] = args.output_folder
     if args.parallel_agents:
         config["parallel_agents"] = True
-        logging.info("Parallel agent execution enabled via --parallel-agents flag")
+        if config.get("log_details", False):
+            logging.info("Parallel agent execution enabled via --parallel-agents flag")
 
-    # Determine file(s) to process — read from config after all overrides applied
+    # Determine file(s) to process - read from config after all overrides applied.
+    # Explicit --folder or --pattern bypasses default_file even if set in config.
     files_to_process = []
     default_file = config["file_load"].get("default_file")
-    if default_file:
+    if default_file and not (args.folder or args.pattern):
         files_to_process.append(default_file)
     else:
         folder = config["file_load"].get("folder", ".")
@@ -406,7 +415,8 @@ def main():
 
     # Process each file
     for file_path in files_to_process:
-        logging.info(f"Processing file: {file_path}")
+        if config.get("log_details", False):
+            logging.info(f"Processing file: {file_path}")
         try:
             conversion_result = process_data(file_path, config)
             save_logs(conversion_result, config)

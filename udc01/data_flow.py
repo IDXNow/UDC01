@@ -36,7 +36,8 @@ def perform_conversion(raw_data: str, config: dict, run_index: int = 0, prev_not
         return {"error": "Unreplaced placeholders in request", "content": None}
 
     logging.debug(f"Payload for conversion agent {agent.get('name')}: {payload}")
-    logging.info(f"Running conversion (attempt {run_index + 1})")
+    if config.get("log_details", False):
+        logging.info(f"Running conversion (attempt {run_index + 1})")
 
     response = run_agent(agent, payload)
     if "error" in response:
@@ -67,15 +68,19 @@ def process_data(file_path: str, config: dict) -> dict:
     # -----------------------------------------------------------------
     # 1. Pre-conversion verification
     # -----------------------------------------------------------------
-    pre_verification_results = verify_input_data_2of3(raw_data, config)
-    success_count = sum(1 for r in pre_verification_results if r.get("isvalid"))
-    if success_count < 2:
-        logging.error("Pre-conversion verification failed (2/3 rule not met).")
-        return {
-            "status": "pre-verification_failed",
-            "pre_verification_results": pre_verification_results,
-            "file_path": file_path,
-        }
+    if config.get("verification", {}).get("enabled", True) is not False:
+        pre_verification_results = verify_input_data_2of3(raw_data, config)
+        success_count = sum(1 for r in pre_verification_results if r.get("isvalid"))
+        if success_count < 2:
+            logging.error("Pre-conversion verification failed (2/3 rule not met).")
+            return {
+                "status": "pre-verification_failed",
+                "pre_verification_results": pre_verification_results,
+                "file_path": file_path,
+            }
+    else:
+        if config.get("log_details", False):
+            logging.info("Pre-conversion verification skipped (verification.enabled: false)")
 
     # -----------------------------------------------------------------
     # 2. Conversion + validation with retry logic
@@ -108,6 +113,10 @@ def process_data(file_path: str, config: dict) -> dict:
         else:
             # append error note for next conversion attempt
             prev_conv_msg = "\n\n".join([item.get("invalid_msg", "") for item in validation_results if not item.get("isvalid", True)])
+            if config.get("include_prior_output_on_retry", False):
+                prev_conv_msg += "\n\n<prev_output>" + output_data + "</prev_output>"
+            
+            
 
         # Log detailed validation errors before retrying
         retry_count += 1
@@ -257,7 +266,7 @@ def parse_tabular_data(output_data: str) -> pd.DataFrame | None:
             data = json.loads(output_data)
             if isinstance(data, list) and len(data) > 0:
                 df = pd.DataFrame(data)
-                logging.info(f"Parsed JSON array: {len(df)} rows, {len(df.columns)} columns")
+                logging.debug(f"Parsed JSON array: {len(df)} rows, {len(df.columns)} columns")
                 return df
     except (json.JSONDecodeError, ValueError):
         pass
@@ -278,7 +287,7 @@ def parse_tabular_data(output_data: str) -> pd.DataFrame | None:
                         data_rows.append(row)
 
                 df = pd.DataFrame(data_rows, columns=headers)
-                logging.info(f"Parsed pipe-delimited: {len(df)} rows, {len(df.columns)} columns")
+                logging.debug(f"Parsed pipe-delimited: {len(df)} rows, {len(df.columns)} columns")
                 return df
         except Exception as exc:
             logging.warning(f"Failed to parse as pipe-delimited: {exc}")
@@ -287,7 +296,7 @@ def parse_tabular_data(output_data: str) -> pd.DataFrame | None:
     try:
         df = pd.read_csv(io.StringIO(output_data))
         if not df.empty:
-            logging.info(f"Parsed CSV: {len(df)} rows, {len(df.columns)} columns")
+            logging.debug(f"Parsed CSV: {len(df)} rows, {len(df.columns)} columns")
             return df
     except Exception as exc:
         logging.warning(f"Failed to parse as CSV: {exc}")
@@ -322,7 +331,7 @@ def save_as_excel(df: pd.DataFrame, file_path: str) -> bool:
                 )
                 worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 50)
 
-        logging.info(f"Excel file saved: {file_path}")
+        logging.debug(f"Excel file saved: {file_path}")
         return True
     except Exception as exc:
         logging.error(f"Error saving Excel file {file_path}: {exc}")
@@ -354,7 +363,8 @@ def save_output_data(output_data: str, file_path: str, config: dict) -> str | No
                 text_path = os.path.join(output_dir, f"{basename}-{timestamp}.txt")
                 with open(text_path, "w", encoding="utf-8") as fh:
                     fh.write(output_data)
-                logging.info(f"Output saved as text (fallback): {text_path}")
+                if config.get("log_details", False):
+                    logging.info(f"Output saved as text (fallback): {text_path}")
                 return text_path
 
             if save_as_excel(df, out_path):
@@ -366,7 +376,8 @@ def save_output_data(output_data: str, file_path: str, config: dict) -> str | No
         else:
             with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write(output_data)
-            logging.info(f"Output saved to {out_path}")
+            if config.get("log_details", False):
+                logging.info(f"Output saved to {out_path}")
             return out_path
 
     except Exception as exc:

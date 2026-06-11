@@ -104,7 +104,7 @@ UDC01 was designed to: accept anything, validate thoroughly, and run reliably wi
 
 ### Data Process Flow
 
-The transformation pipeline runs in four stages, each building on the last.  The design is intentional: no data transformation or conversion is performed until the input has been verified, and no result is accepted until it has been independently validated.
+The transformation pipeline runs in four stages, each building on the last.  The design is intentional: by default, no data transformation or conversion is performed until the input has been verified, and no result is accepted until it has been independently validated.  Verification can be skipped for pipelines where source data quality is already guaranteed - see [Conversion Configuration (YAML)](#conversion-configuration-yaml).
 
 1. **Input Processing**
    - File/queue content reading (Excel, CSV, JSON, XML, HTML, TXT, PDF)
@@ -363,6 +363,7 @@ Here's the design decision that makes UDC01 genuinely reliable rather than just 
    - Three independent LLM agents verify the input data's structure and content
    - At least two agents must approve for processing to continue
    - Early-exit optimization: If the first two agents agree, the third agent is not called
+   - Can be disabled per-conversion with `verification: { enabled: false }` in the YAML config when source data quality is guaranteed
 
 2. **Post-Conversion Validation**:
    - Three independent LLM agents validate the conversion output
@@ -540,6 +541,7 @@ For a full explanation of how model, provider, and temperature can be set at the
 |---------|-------------|
 | `default_provider` | Provider used by all agents unless overridden |
 | `max_retries` | Max conversion retry attempts (default: 3) |
+| `include_prior_output_on_retry` | When true, feeds the previous failed output back to the conversion agent on retry alongside validator error messages (default: false) |
 | `api_timeout` | API call timeout in seconds (default: 600) |
 | `api_retry_attempts` | Retry attempts per API call (default: 3) |
 | `api_retry_backoff` | Exponential backoff multiplier (default: 2) |
@@ -573,6 +575,15 @@ data_validation_system_msg: |
   You are a data validation agent responsible for ensuring the quality of converted Sales Invoice data.
   # Validation instructions...
 ```
+
+**Skipping pre-conversion verification:**  When your source data quality is already guaranteed, add this block to your YAML to bypass it:
+
+```yaml
+verification:
+  enabled: false
+```
+
+When `verification.enabled` is `false`, the `data_verification_system_msg` and `data_verification_request_msg` fields are no longer required and the pipeline goes straight to conversion.  Omitting the `verification` block (or setting `enabled: true`) keeps the default behavior.
 
 ---
 

@@ -102,7 +102,7 @@ The `providers` section is where you define connection details for each LLM serv
 | `auth_header` | No | HTTP header name for authentication |
 | `auth_prefix` | No | Prefix before the API key (e.g. `"Bearer"`) |
 | `default_model` | No | Default model for agents using this provider |
-| `default_temperature` | No | Default temperature for agents using this provider. Omit for providers that don't support it (e.g. OpenAI o-series reasoning models) |
+| `default_temperature` | No | Default temperature for agents using this provider.  Omit for providers that don't support it |
 
 ---
 
@@ -187,8 +187,7 @@ When one specific agent needs different settings - a different model for a criti
         "name": "Chris Einstein",
         "role": "verify",
         "provider": "openai",
-        "model": "gpt-4o",
-        "temperature": 0.5
+        "model": "gpt-5.4-mini",
         // fully overrides - uses OpenAI gpt-4o at temperature 0.5
       }
     ]
@@ -293,7 +292,7 @@ Three providers support extended thinking or reasoning modes - and each uses a d
 
 **On an individual agent:**
 ```json
-{ "name": "Ted Sagan", "role": "convert", "provider": "openai", "model": "o3", "reasoning_effort": "high" }
+{ "name": "Ted Sagan", "role": "convert", "provider": "openai", "model": "gpt-5.4-mini", "reasoning_effort": "high" }
 ```
 
 When `reasoning_effort` is set, `temperature` is automatically omitted from the request - these two parameters are mutually exclusive on OpenAI o-series models.
@@ -382,7 +381,7 @@ This example shows all three levels working together - a global default of Googl
           "model": "claude-haiku-4-5-20251001",
           "instructions": "data_verification_system_msg",
           "request_instructions": "data_verification_request_msg"
-          // -> anthropic / claude-haiku-4-5-20251001 / temperature 1
+          // -> anthropic / claude-haiku-4-5 / temperature 1
         },
         {
           "name": "Nathan Fourier",
@@ -443,6 +442,19 @@ This example shows all three levels working together - a global default of Googl
 ## Quick Reference
 
 Use these tables as a quick lookup when building or debugging configurations.
+
+### Top-level runtime settings
+
+| Setting | Description |
+|---------|-------------|
+| `max_retries` | Max conversion retry attempts before giving up (default: 3) |
+| `include_prior_output_on_retry` | When `true`, the previous failed output is included in the next retry prompt alongside validator error messages, giving the conversion agent full context on what it produced and why it was rejected.  When `false`, only the validator error messages are sent. (default: false) |
+| `parallel_agents` | Run verifier/validator agents in parallel (default: false) |
+| `max_parallel_workers` | Max concurrent agent threads when `parallel_agents` is true (default: 2) |
+| `log_details` | Include detailed operational logs (default: false) |
+| `api_timeout` | API call timeout in seconds (default: 600) |
+| `api_retry_attempts` | Retry attempts per individual API call (default: 3) |
+| `api_retry_backoff` | Exponential backoff multiplier between API retries (default: 2) |
 
 ### What can be set at each level?
 

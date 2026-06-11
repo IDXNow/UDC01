@@ -1,6 +1,7 @@
 {
   "default_provider": "google",
   "max_retries": 3,
+  "include_prior_output_on_retry": false,
   "api_timeout": 600,
   "api_retry_attempts": 3,
   "api_retry_backoff": 2,
@@ -22,7 +23,7 @@
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
       "request_format": "openai",
-      "default_model": "gpt-5-mini"
+      "default_model": "gpt-5.4-mini"
     },
     "anthropic": {
       "base_url": "https://api.anthropic.com",
@@ -32,7 +33,7 @@
       "version_header": "anthropic-version",
       "version": "2023-06-01",
       "request_format": "anthropic",
-      "default_model": "claude-sonnet-4-5"
+      "default_model": "claude-sonnet-4-6"
     },
     "google": {
       "base_url": "https://generativelanguage.googleapis.com",
@@ -40,7 +41,7 @@
       "auth_header": "x-goog-api-key",
       "auth_prefix": "",
       "request_format": "google",
-      "default_model": "gemini-2.5-flash"
+      "default_model": "gemini-3.5-flash"
     }
   },
   "api_keys": {
@@ -49,7 +50,7 @@
     "google": "${GOOGLE_API_KEY}"
   },
   "file_load": {
-    "default_file": "samples/sources/sales_invoice.csv",
+    
     "folder": "samples/sources/",
     "search_pattern": "*.csv"
   },
