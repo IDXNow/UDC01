@@ -395,6 +395,7 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
                 "retry_count": attempt
             }
             
+            # print(f"Agent {agent_config.get('name')} ({provider}/{model}) completed in {elapsed_time:.2f}s (attempt {attempt + 1}/{max_retries})") # --> testing
             logging.debug(f"Agent {agent_config.get('name')} ({provider}/{model}) completed in {elapsed_time:.2f}s (attempt {attempt + 1}/{max_retries})")
 
             return result

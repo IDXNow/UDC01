@@ -54,6 +54,7 @@ DEFAULT_CONFIG = {
     "default_endpoint": "v1/chat/completions",
     "default_temperature": None,
     "max_retries": 3,
+    "include_prior_output_on_retry": False,
     "api_timeout": 600,
     "api_retry_attempts": 3,
     "api_retry_backoff": 2,
@@ -126,6 +127,14 @@ def validate_conversion_yaml(yaml_data: dict, conversion_path: str):
         if not isinstance(yaml_data[key], str) or not yaml_data[key].strip():
             raise ValueError(
                 f"Conversion YAML '{conversion_path}' has empty or invalid value for '{key}'"
+            )
+
+    # Boolean settings must be real YAML booleans (true/false), not strings like "true"
+    for key in ("include_prior_output_on_retry",):
+        if key in yaml_data and not isinstance(yaml_data[key], bool):
+            raise ValueError(
+                f"Conversion YAML '{conversion_path}' has non-boolean value for '{key}': "
+                f"{yaml_data[key]!r} (use true or false, unquoted)"
             )
 
     logging.debug(f"Conversion YAML validation passed for {conversion_path}")
@@ -374,6 +383,11 @@ def main():
                         help="Folder to save output files (overrides config file_save.folder)")
     parser.add_argument("--parallel-agents", action="store_true",
                         help="Run validator agents in parallel (overrides config parallel_agents)")
+    parser.add_argument("--include-prior-output-on-retry",
+                        action=argparse.BooleanOptionalAction, default=None,
+                        help="Include the previous failed output in retry prompts alongside "
+                             "validator errors (overrides config file and conversion YAML; "
+                             "use --no-include-prior-output-on-retry to force off)")
 
     args = parser.parse_args()
 
@@ -397,6 +411,10 @@ def main():
         config["parallel_agents"] = True
         if config.get("log_details", False):
             logging.info("Parallel agent execution enabled via --parallel-agents flag")
+    if args.include_prior_output_on_retry is not None:
+        config["include_prior_output_on_retry"] = args.include_prior_output_on_retry
+        if config.get("log_details", False):
+            logging.info(f"include_prior_output_on_retry set to {args.include_prior_output_on_retry} via CLI flag")
 
     # Determine file(s) to process - read from config after all overrides applied.
     # Explicit --folder or --pattern bypasses default_file even if set in config.

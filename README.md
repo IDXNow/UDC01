@@ -216,6 +216,8 @@ python udc01.py
   --pattern FILE_PATTERN         # File search pattern (e.g., '*.csv')
   --output-folder OUTPUT_PATH    # Folder to save output files
   --parallel-agents              # Run validator agents in parallel (faster for cloud APIs)
+  --include-prior-output-on-retry     # Feed the previous failed output back on retry
+  --no-include-prior-output-on-retry  # ...or force that behavior off
 ```
 
 If you omit `--config` or `--conversion`, UDC01 uses its built-in defaults. You can also copy and customize `udc01/default_config.json` as your own starting point.
@@ -541,7 +543,7 @@ For a full explanation of how model, provider, and temperature can be set at the
 |---------|-------------|
 | `default_provider` | Provider used by all agents unless overridden |
 | `max_retries` | Max conversion retry attempts (default: 3) |
-| `include_prior_output_on_retry` | When true, feeds the previous failed output back to the conversion agent on retry alongside validator error messages (default: false) |
+| `include_prior_output_on_retry` | When true, feeds the previous failed output back to the conversion agent on retry alongside validator error messages.  Can be set in the config file, per-recipe as a top-level conversion YAML key, or at runtime via `--include-prior-output-on-retry` / `--no-include-prior-output-on-retry` (default: false) |
 | `api_timeout` | API call timeout in seconds (default: 600) |
 | `api_retry_attempts` | Retry attempts per API call (default: 3) |
 | `api_retry_backoff` | Exponential backoff multiplier (default: 2) |

@@ -45,11 +45,15 @@ Settings are applied in layers, each one overriding the previous. **Higher prior
 ```
 1. Code defaults       (lowest)  - built-in fallbacks, always present
 2. Config file                   - your JSON config, merged over code defaults
-3. CLI arguments       (highest) - --file, --folder, --pattern, --output-folder, --parallel-agents
+3. Conversion YAML               - top-level keys in the recipe, merged over the config file
+4. CLI arguments       (highest) - --file, --folder, --pattern, --output-folder,
+                                   --parallel-agents, --include-prior-output-on-retry
 ```
 
 **Example:**
 The config file sets `"folder": "data/"`. You run with `--folder "inputs/"`. The `inputs/` folder is used.
+
+The conversion YAML layer means a recipe can carry runtime behavior alongside its prompts. Setting `include_prior_output_on_retry: true` as a top-level key in a recipe overrides the config file for that conversion - useful when a specific conversion type converges faster with the prior output in the retry prompt, without changing the setting globally.  The CLI flag still wins over both: `--include-prior-output-on-retry` forces it on, `--no-include-prior-output-on-retry` forces it off, and omitting the flag defers to the lower layers.
 
 ---
 
@@ -188,7 +192,7 @@ When one specific agent needs different settings - a different model for a criti
         "role": "verify",
         "provider": "openai",
         "model": "gpt-5.4-mini",
-        // fully overrides - uses OpenAI gpt-4o at temperature 0.5
+        // fully overrides - uses OpenAI gpt-5.4-mini at temperature 0.5
       }
     ]
   }
@@ -237,7 +241,7 @@ To set a different temperature for one specific agent:
 
 ## Thinking & Reasoning
 
-Three providers support extended thinking or reasoning modes - and each uses a different mechanism. UDC01 handles the differences transparently, so the same three-level hierarchy (provider profile → role-group → individual agent) applies to all of them.
+Providers support extended thinking or reasoning modes - and each uses a different mechanism. UDC01 handles the differences transparently, so the same three-level hierarchy (provider profile → role-group → individual agent) applies to all of them.
 
 ### Provider support
 
@@ -245,7 +249,7 @@ Three providers support extended thinking or reasoning modes - and each uses a d
 |----------|-----------|--------|-----------------------|
 | **Anthropic** | `thinking_budget` | integer ≥ 1024 (tokens) | **Replaced** - forced to 1 by the API when thinking is on |
 | **Google Gemini** | `thinking_budget` | integer, `0` (off), `-1` (dynamic) | **Coexists** - temperature still applies |
-| **OpenAI** (o-series) | `reasoning_effort` | `"low"`, `"medium"`, `"high"` | **Replaced** - o-series never supported temperature |
+| **OpenAI** | `reasoning_effort` | `"low"`, `"medium"`, `"high"` | **Replaced** |
 
 ### Setting thinking_budget (Anthropic & Google)
 
@@ -350,7 +354,7 @@ This example shows all three levels working together - a global default of Googl
       "endpoint": "v1/messages",
       "auth_header": "x-api-key",
       "request_format": "anthropic",
-      "default_model": "claude-sonnet-4-5",
+      "default_model": "claude-sonnet-5-4",
       "default_temperature": 1
     },
     "openai": {
@@ -359,7 +363,7 @@ This example shows all three levels working together - a global default of Googl
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
       "request_format": "openai",
-      "default_model": "gpt-4o-mini"
+      "default_model": "gpt-4.5-mini"
     }
   },
 
@@ -448,7 +452,7 @@ Use these tables as a quick lookup when building or debugging configurations.
 | Setting | Description |
 |---------|-------------|
 | `max_retries` | Max conversion retry attempts before giving up (default: 3) |
-| `include_prior_output_on_retry` | When `true`, the previous failed output is included in the next retry prompt alongside validator error messages, giving the conversion agent full context on what it produced and why it was rejected.  When `false`, only the validator error messages are sent. (default: false) |
+| `include_prior_output_on_retry` | When `true`, the previous failed output is included in the next retry prompt alongside validator error messages, giving the conversion agent full context on what it produced and why it was rejected.  When `false`, only the validator error messages are sent.  Can be set in the config file, overridden per-recipe as a top-level conversion YAML key, and forced either way at runtime with `--include-prior-output-on-retry` / `--no-include-prior-output-on-retry`. (default: false) |
 | `parallel_agents` | Run verifier/validator agents in parallel (default: false) |
 | `max_parallel_workers` | Max concurrent agent threads when `parallel_agents` is true (default: 2) |
 | `log_details` | Include detailed operational logs (default: false) |

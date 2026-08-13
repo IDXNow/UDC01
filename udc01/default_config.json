@@ -1,5 +1,5 @@
 {
-  "default_provider": "google",
+  "default_provider": "anthropic",
   "max_retries": 3,
   "include_prior_output_on_retry": false,
   "api_timeout": 600,
@@ -33,7 +33,7 @@
       "version_header": "anthropic-version",
       "version": "2023-06-01",
       "request_format": "anthropic",
-      "default_model": "claude-sonnet-4-6"
+      "default_model": "claude-sonnet-5"
     },
     "google": {
       "base_url": "https://generativelanguage.googleapis.com",

@@ -2,7 +2,7 @@
   "version": "1.0.1",
 
   "cloud_managed_api": {
-    "api_base_url": "https://api.bevdi.com/udc/v1/",
+    "api_base_url": "https://api.bevdi.co/udc/v1/",
     "api_key_env": "UDC_API_KEY",
     "default_endpoint": "jobs",
     "organization_id": null,

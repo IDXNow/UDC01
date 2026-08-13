@@ -1,3 +1,6 @@
+include_prior_output_on_retry: true
+verification: { enabled: true }
+
 data_conversion_system_msg: |
   You are a data conversion agent specializing in format transformation. Your task is to convert Sales Invoice data from CSV format to pipe-delimited (|) format.
 
