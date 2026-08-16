@@ -170,6 +170,30 @@ def run_2of3_consensus(agents: list, payload_builder, config: dict, agent_type: 
         return _run_2of3_sequential(agents, payload_builder, config, agent_type)
 
 
+def _agent_failure(reason: str) -> dict:
+    """Build a result for an agent that never produced a usable verdict."""
+    return {"isvalid": False, "failed": True, "invalid_msg": reason}
+
+
+def _parse_verdict(message: dict, agent: dict, agent_type: str) -> dict:
+    """Parse an agent response into a verdict, or a failure when it's not present."""
+    content = message.get("content") or ""
+    parsed = parse_isvalid(content)
+
+    if "isvalid" not in parsed:
+        model = message.get("_metadata", {}).get("model", "unknown")
+        logging.error(
+            f"{agent_type} agent {agent.get('name')} ({model}) returned no <isvalid> "
+            f"verdict in {len(content)} chars of content"
+        )
+        return _agent_failure(
+            f"Agent {agent.get('name')} returned no <isvalid> verdict "
+            f"({len(content)} chars received)"
+        )
+
+    return parsed
+
+
 def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type: str) -> list:
     """Sequential execution with early-exit optimization (original behavior)."""
     results = []
@@ -180,10 +204,10 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
     for idx, agent in enumerate(agents):
         # Early exit check: if first two agents agree, skip the third
         if idx == 2 and len(results) == 2:
-            if results[0]["isvalid"] == results[1]["isvalid"]:
+            if results[0].get("isvalid") == results[1].get("isvalid"):
                 if config.get("log_details", False):
                     logging.info(f"Early exit: first two {agent_type} agents agree, skipping third agent")
-                break  # Consensus already achieved
+                break  # Outcome already determined
 
         prepare_agent(agent, config)
         payload = payload_builder(agent, config)
@@ -191,7 +215,7 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
         # Validate no placeholders remain
         if config.get("validate_placeholders", True) and not validate_no_placeholders(payload["request"]):
             logging.error(f"Unreplaced placeholders in {agent_type} request for agent {agent.get('name')}")
-            results.append({"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
+            results.append(_agent_failure("Unreplaced placeholders in request"))
             continue
 
         if config.get("log_details", False):
@@ -200,13 +224,12 @@ def _run_2of3_sequential(agents: list, payload_builder, config: dict, agent_type
         message = run_agent(agent, payload)
         if "error" in message:
             logging.error(f"Agent {agent.get('name')} failed: {message['error']}")
-            results.append({"isvalid": False, "invalid_msg": f"Agent error: {message['error']}"})
+            results.append(_agent_failure(f"Agent error: {message['error']}"))
         else:
-            parsed = parse_isvalid(message.get("content", ""))
-            results.append(parsed)
+            results.append(_parse_verdict(message, agent, agent_type))
 
         # After the second agent, check for early consensus
-        if idx == 1 and results[0]["isvalid"] == results[1]["isvalid"]:
+        if idx == 1 and results[0].get("isvalid") == results[1].get("isvalid"):
             if config.get("log_details", False):
                 logging.info(f"Early exit: first two {agent_type} agents agree")
             break  # Consensus (both True or both False)
@@ -236,7 +259,7 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
         # Validate no placeholders remain
         if config.get("validate_placeholders", True) and not validate_no_placeholders(payload["request"]):
             logging.error(f"Unreplaced placeholders in {agent_type} request for agent {agent.get('name')}")
-            return (idx, {"isvalid": False, "invalid_msg": "Unreplaced placeholders in request"})
+            return (idx, _agent_failure("Unreplaced placeholders in request"))
 
         if config.get("log_details", False):
             logging.debug(f"Payload for {agent_type} agent {agent.get('name')}: {payload}")
@@ -244,10 +267,9 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
         message = run_agent(agent, payload)
         if "error" in message:
             logging.error(f"Agent {agent.get('name')} failed: {message['error']}")
-            return (idx, {"isvalid": False, "invalid_msg": f"Agent error: {message['error']}"})
+            return (idx, _agent_failure(f"Agent error: {message['error']}"))
         else:
-            parsed = parse_isvalid(message.get("content", ""))
-            return (idx, parsed)
+            return (idx, _parse_verdict(message, agent, agent_type))
 
     results = []
 
@@ -264,9 +286,9 @@ def _run_2of3_parallel(agents: list, payload_builder, config: dict, agent_type: 
     results.append(result_1)
 
     # Phase 2: Check if first 2 agents agree
-    if result_0["isvalid"] == result_1["isvalid"]:
+    if result_0.get("isvalid") == result_1.get("isvalid"):
         if config.get("log_details", False):
-            logging.info(f"Early consensus: first 2 {agent_type} agents agree ({result_0['isvalid']}), skipping 3rd agent")
+            logging.info(f"Early consensus: first 2 {agent_type} agents agree ({result_0.get('isvalid')}), skipping 3rd agent")
         return results  # Consensus reached, no need for 3rd agent
 
     # Phase 3: Disagreement - run 3rd agent as tie-breaker

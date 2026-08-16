@@ -71,6 +71,16 @@ def process_data(file_path: str, config: dict) -> dict:
     if config.get("verification", {}).get("enabled", True) is not False:
         pre_verification_results = verify_input_data_2of3(raw_data, config)
         success_count = sum(1 for r in pre_verification_results if r.get("isvalid"))
+
+        # No verifier returned a verdict
+        if pre_verification_results and all(r.get("failed") for r in pre_verification_results):
+            logging.error("All verification agents failed to return a verdict; input was not evaluated.")
+            return {
+                "status": "verification_unavailable",
+                "pre_verification_results": pre_verification_results,
+                "file_path": file_path,
+            }
+
         if success_count < 2:
             logging.error("Pre-conversion verification failed (2/3 rule not met).")
             return {
@@ -91,7 +101,6 @@ def process_data(file_path: str, config: dict) -> dict:
         output_data = parse_output(conversion_content) if conversion_content else None
 
         if output_data is None:
-            # Conversion agent did not return expected <o> tags — retry.
             retry_count += 1
             logging.warning(f"Conversion response missing <o> section (attempt {retry_count}/{max_retries}); retrying…")
             prev_conv_msg = "Your previous response was missing the required <o>…</o> tags. You MUST wrap all output in <o> and </o> tags."
@@ -100,6 +109,16 @@ def process_data(file_path: str, config: dict) -> dict:
         # Validate converted output
         validation_results = validate_output_2of3(raw_data, output_data, config)
         val_success_count = sum(1 for r in validation_results if r.get("isvalid"))
+
+        # No validator returned a verdict
+        if validation_results and all(r.get("failed") for r in validation_results):
+            logging.error("All validation agents failed to return a verdict; aborting conversion retries.")
+            return {
+                "status": "validation_unavailable",
+                "validation": validation_results,
+                "retries": retry_count,
+                "file_path": file_path,
+            }
 
         if val_success_count >= 2:
             # Success – save the file and break.
@@ -112,7 +131,12 @@ def process_data(file_path: str, config: dict) -> dict:
             break
         else:
             # append error note for next conversion attempt
-            prev_conv_msg = "\n\n".join([item.get("invalid_msg", "") for item in validation_results if not item.get("isvalid", True)])
+            # Only feed back genuine rejections. A failed agent's message describes possible network issue.
+            prev_conv_msg = "\n\n".join([
+                item.get("invalid_msg", "")
+                for item in validation_results
+                if not item.get("isvalid", True) and not item.get("failed")
+            ])
             if config.get("include_prior_output_on_retry", False):
                 prev_conv_msg += "\n\n<prev_output>" + output_data + "</prev_output>"
             
@@ -123,7 +147,10 @@ def process_data(file_path: str, config: dict) -> dict:
         logging.warning(f"Validation failed (attempt {retry_count}/{max_retries}); retrying conversion…")
         logging.warning(f"Validation results: {val_success_count}/3 validators approved")
         for idx, result in enumerate(validation_results, 1):
-            status = "✓ VALID" if result.get("isvalid") else "✗ INVALID"
+            if result.get("failed"):
+                status = "! FAILED"
+            else:
+                status = "✓ VALID" if result.get("isvalid") else "✗ INVALID"
             msg = result.get("invalid_msg", "No message provided")
             logging.warning(f"  Validator {idx}: {status} - {msg}")
 

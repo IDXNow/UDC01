@@ -100,7 +100,7 @@
       "name": "Ted Sagan",
       "role": "convert",
       "provider": "anthropic",
-      "model": "claude-sonnet-4-5",
+      "model": "claude-sonnet-5-4",
       "temperature": 1
     },
     "data_validator": [
