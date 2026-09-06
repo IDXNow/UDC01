@@ -61,13 +61,25 @@ def load_udc_providers():
         udc_config_path = Path(udc01.__file__).parent / "default_config.json"
         with open(udc_config_path, 'r') as f:
             udc_config = json.load(f)
-        return udc_config.get("providers", {}), udc_config.get("default_provider", "local")
+        return (
+            udc_config.get("providers", {}),
+            udc_config.get("default_provider", "local"),
+            udc_config.get("api_keys", {})
+        )
     except Exception as e:
         st.error(f"Failed to load UDC01 providers: {e}")
-        return {}, "local"
+        return {}, "local", {}
+
+
+def provider_api_key_env(provider_key, api_keys):
+    """Resolve a provider's env var name from UDC01's ${VAR} api_keys entry."""
+    entry = api_keys.get(provider_key)
+    if isinstance(entry, str) and entry.startswith("${") and entry.endswith("}"):
+        return entry[2:-1]
+    return f"{provider_key.upper()}_API_KEY"
 
 config = load_config()
-udc_providers, default_provider = load_udc_providers()
+udc_providers, default_provider, udc_api_keys = load_udc_providers()
 
 if config is None:
     st.stop()
@@ -85,6 +97,7 @@ with st.sidebar:
     # Build provider options from UDC01 config + Cloud Managed API
     provider_icons = {
         "local": "🏠",
+        "ollama": "🦙",
         "openai": "🤖",
         "anthropic": "🧠",
         "google": "🔍",
@@ -93,6 +106,7 @@ with st.sidebar:
 
     provider_labels = {
         "local": "Local (Self-Hosted LLM)",
+        "ollama": "Ollama (Local Runtime)",
         "openai": "OpenAI (GPT)",
         "anthropic": "Anthropic (Claude)",
         "google": "Google (Gemini)",
@@ -138,10 +152,11 @@ with st.sidebar:
     if selected_provider == "cloud_managed":
         # Cloud Managed API settings
         st.subheader("☁️ Cloud API Settings")
+        cloud_api_url = config["cloud_managed_api"]["api_base_url"]
         api_key = st.text_input(
             "API Key",
             type="password",
-            help="Get your key at bevdi.com/api"
+            help=f"Managed API endpoint: {cloud_api_url}"
         )
 
         if api_key:
@@ -172,7 +187,7 @@ with st.sidebar:
                         st.error(f"❌ Connection failed: {str(e)}")
         else:
             st.warning("⚠️ API key required for cloud mode")
-            st.markdown("[Get an API key](https://bevdi.com/api)")
+            st.markdown(f"[Get an API key]({cloud_api_url})")
             st.stop()
 
     else:
@@ -189,10 +204,23 @@ with st.sidebar:
         )
         provider_config["base_url"] = base_url
 
-        # For non-local providers, show API key input
-        if selected_provider != "local":
+        # Show the profile fields UDC01 will actually apply
+        profile_fields = [
+            ("Model", provider_config.get("default_model")),
+            ("Max tokens", provider_config.get("default_max_tokens")),
+            ("Token param", provider_config.get("token_param", "max_tokens")),
+            ("Temperature", "supported" if provider_config.get("supports_temperature", True) else "not supported"),
+            ("Reasoning effort", provider_config.get("default_reasoning_effort")),
+        ]
+        st.caption("**Profile**")
+        for field_label, field_value in profile_fields:
+            if field_value is not None:
+                st.caption(f"- {field_label}: `{field_value}`")
+
+        # Providers with an auth_header need a key; local/ollama do not
+        if provider_config.get("auth_header"):
             import os
-            api_key_env = f"{selected_provider.upper()}_API_KEY"
+            api_key_env = provider_api_key_env(selected_provider, udc_api_keys)
             current_key = os.getenv(api_key_env, "")
 
             api_key = st.text_input(
@@ -211,8 +239,8 @@ with st.sidebar:
                 try:
                     import requests
 
-                    # For local provider, test the endpoint
-                    if selected_provider == "local":
+                    # Keyless local runtimes expose an OpenAI-shaped model list
+                    if not provider_config.get("auth_header"):
                         test_url = base_url.rstrip('/') + '/v1/models'
                         response = requests.get(test_url, timeout=5)
 
@@ -265,6 +293,18 @@ with st.sidebar:
         )
         config["generation"]["consensus_requirement"] = consensus
 
+        config["generation"]["verification_enabled"] = st.checkbox(
+            "Pre-conversion verification",
+            value=config["generation"].get("verification_enabled", True),
+            help="Emit verification.enabled in the generated config. Off skips the pre-conversion stage and omits the verification prompts."
+        )
+
+        config["generation"]["include_prior_output_on_retry"] = st.checkbox(
+            "Include prior output on retry",
+            value=config["generation"].get("include_prior_output_on_retry", False),
+            help="Emit include_prior_output_on_retry. On, a failed attempt's output is fed back into the retry."
+        )
+
 # ============================================================================
 # SESSION STATE INITIALIZATION
 # ============================================================================
@@ -299,6 +339,14 @@ if 'builder' not in st.session_state or st.session_state.get('last_provider') !=
             # Override default_provider with selected one
             udc_config["default_provider"] = current_provider
 
+            # A custom provider has no api_keys entry, so its key doesn't resolve
+            import os
+            key_env = provider_api_key_env(current_provider, udc_config.get("api_keys", {}))
+            if os.getenv(key_env):
+                udc_config.setdefault("api_keys", {}).setdefault(
+                    current_provider, "${" + key_env + "}"
+                )
+
             # Update all agents to use the selected provider
             for agent_type in udc_config.get("agents", {}).keys():
                 agents = udc_config["agents"][agent_type]
@@ -309,11 +357,16 @@ if 'builder' not in st.session_state or st.session_state.get('last_provider') !=
                         agent["provider"] = current_provider
 
             # Merge provider-specific settings
+            profile = udc_providers[current_provider]
             builder_config["local"] = {
-                "api_base_url": udc_providers[current_provider].get("base_url", ""),
-                "default_model": udc_config.get("default_model", ""),
-                "default_endpoint": udc_providers[current_provider].get("endpoint", "v1/chat/completions"),
-                "default_temperature": udc_config.get("default_temperature", 1),
+                "api_base_url": profile.get("base_url", ""),
+                "default_model": profile.get("default_model") or udc_config.get("default_model", ""),
+                "default_endpoint": profile.get("endpoint", "v1/chat/completions"),
+                "default_temperature": profile.get("default_temperature", udc_config.get("default_temperature", 1)),
+                "default_max_tokens": profile.get("default_max_tokens", udc_config.get("default_max_tokens")),
+                "token_param": profile.get("token_param", udc_config.get("token_param", "max_tokens")),
+                "supports_temperature": profile.get("supports_temperature", udc_config.get("supports_temperature", True)),
+                "default_reasoning_effort": profile.get("default_reasoning_effort"),
                 "udc_config": udc_config  # Pass full UDC config
             }
 

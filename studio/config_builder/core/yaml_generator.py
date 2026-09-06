@@ -9,6 +9,25 @@ from typing import Dict, Any, Optional
 import logging
 from pathlib import Path
 
+from .text_utils import strip_code_fence
+
+
+VERIFICATION_SECTIONS = """3. **data_verification_system_msg**: Instructions for PRE-PROCESS verification agents
+   - IMPORTANT: Verification checks the INCOMING INPUT data ONLY (before conversion)
+   - Purpose: Ensure input data is valid, safe, and meets requirements for conversion
+   - Does NOT check output or conversion results
+   - Validates structure, completeness, safety, data types of INPUT
+
+4. **data_verification_request_msg**: Template for verification requests (INPUT data only)
+"""
+
+NO_VERIFICATION_SECTIONS = """(Pre-conversion verification is DISABLED for this configuration.
+Do NOT generate data_verification_system_msg or data_verification_request_msg.)
+"""
+
+# UDC01 reads these top-level settings
+RESERVED_SETTING_KEYS = ("verification", "include_prior_output_on_retry")
+
 
 class YAMLGenerator:
     """Generates UDC01 YAML configurations"""
@@ -17,6 +36,9 @@ class YAMLGenerator:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.templates_path = Path(config["generation"]["templates_path"])
+        generation = config.get("generation", {})
+        self.verification_enabled = generation.get("verification_enabled", True)
+        self.include_prior_output_on_retry = generation.get("include_prior_output_on_retry", False)
 
     def load_template(self, format_name: str) -> str:
         """
@@ -70,6 +92,9 @@ class YAMLGenerator:
 
         # Format profile for prompt
         profile_str = json.dumps(profile, indent=2)
+        verification_sections = (
+            VERIFICATION_SECTIONS if self.verification_enabled else NO_VERIFICATION_SECTIONS
+        )
 
         generation_config["data_conversion_system_msg"] = f"""You are a YAML configuration generator for UDC01 data conversion system.
 
@@ -92,14 +117,7 @@ Generate a complete UDC01 YAML configuration file with these sections:
 1. **data_conversion_system_msg**: Instructions for the conversion agent to transform input data
 2. **data_conversion_request_msg**: Template for conversion requests
 
-3. **data_verification_system_msg**: Instructions for PRE-PROCESS verification agents
-   - IMPORTANT: Verification checks the INCOMING INPUT data ONLY (before conversion)
-   - Purpose: Ensure input data is valid, safe, and meets requirements for conversion
-   - Does NOT check output or conversion results
-   - Validates structure, completeness, safety, data types of INPUT
-
-4. **data_verification_request_msg**: Template for verification requests (INPUT data only)
-
+{verification_sections}
 5. **data_validation_system_msg**: Instructions for POST-PROCESS validation agents
    - IMPORTANT: Validation checks the CONVERSION RESULTS (after conversion)
    - Purpose: Ensure conversion was correct by comparing INPUT with OUTPUT
@@ -150,6 +168,7 @@ Do NOT modify, escape, or change these placeholders.  Preserve the exact format 
 - Include proper delimiters, quote handling, and date formats
 - Add validation rules based on data types
 - PRESERVE all runtime placeholders with their wrapper tags exactly as shown above
+- Do NOT emit the top-level keys `verification` or `include_prior_output_on_retry`; Studio adds those
 - **CRITICAL**: The data_conversion_system_msg MUST instruct the conversion agent to wrap output in <o> tags:
   ```
   Format your output as:
@@ -171,6 +190,70 @@ Be precise and ensure the YAML is valid and executable by UDC01."""
 Remember to output ONLY the YAML between the <<<YAML_OUTPUT_START>>> and <<<YAML_OUTPUT_END>>> markers."""
 
         return generation_config
+
+    def apply_runtime_settings(self, yaml_content: str) -> str:
+        """Prepend UDC01's top-level runtime settings as real YAML booleans."""
+        stripped = self._strip_reserved_keys(yaml_content)
+        stripped = self._normalize_indentation(stripped)
+        stripped = self._strip_document_marker(stripped)
+
+        header = [
+            f"verification: {{ enabled: {str(self.verification_enabled).lower()} }}",
+            f"include_prior_output_on_retry: {str(self.include_prior_output_on_retry).lower()}",
+            "",
+        ]
+        return "\n".join(header) + "\n" + stripped.lstrip("\n")
+
+    def _strip_document_marker(self, yaml_content: str) -> str:
+        """Drop a leading '---'."""
+        lines = yaml_content.splitlines()
+
+        for i, line in enumerate(lines):
+            if not line.strip():
+                continue
+            if line.strip() == "---":
+                self.logger.info("Removed leading YAML document marker")
+                return "\n".join(lines[i + 1:]).lstrip("\n")
+            break
+
+        return yaml_content
+
+    def _normalize_indentation(self, yaml_content: str) -> str:
+        """Convert tab indentation to spaces; YAML forbids tabs for indentation."""
+        lines = yaml_content.splitlines()
+        changed = False
+        normalized = []
+
+        for line in lines:
+            indent_len = len(line) - len(line.lstrip(" \t"))
+            indent = line[:indent_len]
+            if "\t" in indent:
+                changed = True
+                indent = indent.replace("\t", "  ")
+            normalized.append(indent + line[indent_len:])
+
+        if changed:
+            self.logger.info("Converted tab indentation to spaces")
+
+        return "\n".join(normalized)
+
+    def _strip_reserved_keys(self, yaml_content: str) -> str:
+        """Drop any generator-emitted copy of a Studio-owned top-level key."""
+        lines = yaml_content.splitlines()
+        kept = []
+        skipping = False
+
+        for line in lines:
+            is_top_level = line[:1] not in ("", " ", "\t", "#")
+            if is_top_level:
+                key = line.split(":", 1)[0].strip()
+                skipping = key in RESERVED_SETTING_KEYS
+                if skipping:
+                    self.logger.warning(f"Dropping generator-emitted '{key}'; Studio owns it")
+            if not skipping:
+                kept.append(line)
+
+        return "\n".join(kept)
 
     def extract_yaml(self, result: Dict[str, Any]) -> Optional[str]:
         """
@@ -196,7 +279,9 @@ Remember to output ONLY the YAML between the <<<YAML_OUTPUT_START>>> and <<<YAML
             if start_pos != -1 and end_pos != -1 and end_pos > start_pos:
                 # Extract content between markers
                 content_start = start_pos + len(start_marker)
-                yaml_content = content[content_start:end_pos].strip()
+                yaml_content = strip_code_fence(
+                    content[content_start:end_pos].strip()
+                )
                 self.logger.info("Successfully extracted YAML from markers")
 
                 # Validate placeholders are present
@@ -209,7 +294,7 @@ Remember to output ONLY the YAML between the <<<YAML_OUTPUT_START>>> and <<<YAML
             # Fallback: Try to find YAML-like content (starts with a key:)
             yaml_match = re.search(r'^[\w_]+:.*', content, re.MULTILINE)
             if yaml_match:
-                yaml_content = content[yaml_match.start():].strip()
+                yaml_content = strip_code_fence(content[yaml_match.start():].strip())
                 self.logger.warning("Found YAML without expected markers")
                 return yaml_content
 
@@ -366,6 +451,10 @@ Validate this YAML configuration and return your verdict in XML format."""
             Generic template string
         """
         return """# UDC01 Generic Configuration Template
+
+# Runtime settings (Studio overwrites these from Advanced Settings)
+verification: { enabled: true }
+include_prior_output_on_retry: false
 
 data_conversion_system_msg: |
   You are a data conversion agent. Transform the input data to the specified format.

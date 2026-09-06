@@ -3,10 +3,15 @@ Data Profiler
 Analyzes sample data to extract structure, patterns, and metadata
 """
 
+import csv
+import io
 import json
 import re
-from typing import Dict, Any, List, Optional
+from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
 import logging
+
+from .text_utils import loads_forgiving
 
 
 class DataProfiler:
@@ -90,6 +95,12 @@ Output ONLY valid JSON within <o> tags:
 }}
 </o>
 
+**OUTPUT RULES (a violation makes the response unusable):**
+- Emit ONLY the JSON object between the <o> tags: no markdown fences, no prose, no comments.
+- Escape every double quote inside a value as \\" — source values may already contain quotes.
+- No trailing commas.
+- At most 3 values in each "samples" array, each no longer than 120 characters.
+
 Be precise and thorough. Extract actual values from the data."""
 
         profiling_config["data_conversion_request_msg"] = """Analyze this sample data and provide a complete profile:
@@ -101,42 +112,243 @@ Remember to output ONLY the JSON structure within <o> tags."""
         return profiling_config
 
     def parse_profile_result(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Extract structured profile from LLM result
+        """Extract a structured profile from an LLM result (None if it cannot be parsed)."""
+        profile, _ = self.parse_profile_result_verbose(result)
+        return profile
 
-        Args:
-            result: Result from conversion job
-
-        Returns:
-            Parsed profile dictionary or None if parsing fails
-        """
+    def parse_profile_result_verbose(
+        self, result: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """Parse a profile, returning (profile, error) so the caller can retry usefully."""
         try:
-            content = result.get("result", {}).get("content", "")
+            if result.get("error"):
+                return None, str(result["error"])
 
-            # Extract json from <o> tags
-            match = re.search(r'<o>\s*(\{.*?\})\s*</o>', content, re.DOTALL)
-            if match:
-                profile_json = match.group(1)
-                profile = json.loads(profile_json)
-                self.logger.info("Successfully parsed profile from result")
-                return profile
-            else:
-                # Try to find json anywhere in the content
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    profile = json.loads(json_match.group(0))
-                    self.logger.warning("Found JSON without <o> tags")
-                    return profile
+            content = result.get("result", {}).get("content")
 
-            self.logger.error("No valid JSON found in result")
-            return None
+            if not content or not str(content).strip():
+                return None, "the model returned an empty response"
 
-        except json.JSONDecodeError as e:
-            self.logger.error(f"JSON parsing error: {e}")
-            return None
+            content = str(content)
+
+            # UDC01's own extractor: case-insensitive
+            from udc01.data_flow import parse_output
+
+            payload = parse_output(content)
+            source = "<o> tags"
+
+            if payload is None:
+                match = re.search(r'\{.*\}', content, re.DOTALL)
+                if match is None:
+                    return None, "no JSON object found in the response"
+                payload, source = match.group(0), "raw response"
+
+            profile, error = loads_forgiving(payload)
+
+            # A matched <o> block that will not parse still deserves the greedy fallback
+            if profile is None and source == "<o> tags":
+                match = re.search(r'\{.*\}', content, re.DOTALL)
+                if match:
+                    profile, fallback_error = loads_forgiving(match.group(0))
+                    error = None if profile is not None else (fallback_error or error)
+
+            if profile is None:
+                return None, error or "could not parse JSON from the response"
+
+            if not isinstance(profile, dict):
+                return None, f"expected a JSON object, got {type(profile).__name__}"
+
+            self.logger.info(f"Successfully parsed profile from {source}")
+            return profile, None
+
         except Exception as e:
             self.logger.error(f"Profile parsing error: {e}")
+            return None, f"{type(e).__name__}: {e}"
+
+    # ========================================================================
+    # Local profiling: exact, instant, and immune to LLM transcription errors
+    # ========================================================================
+
+    DELIMITER_CANDIDATES = [(",", "csv"), ("|", "pipe-delimited"),
+                            ("\t", "tsv"), (";", "semicolon-delimited")]
+    MAX_SAMPLES = 3
+    MAX_SAMPLE_LENGTH = 120
+    DATE_FORMATS = [("%Y-%m-%d", "YYYY-MM-DD"), ("%m/%d/%Y", "MM/DD/YYYY"),
+                    ("%d/%m/%Y", "DD/MM/YYYY"), ("%Y/%m/%d", "YYYY/MM/DD")]
+    DATETIME_FORMATS = [("%Y-%m-%d %H:%M:%S", "YYYY-MM-DD HH:MM:SS"),
+                        ("%Y-%m-%dT%H:%M:%S", "YYYY-MM-DDTHH:MM:SS")]
+    BOOLEAN_VALUES = {"true", "false", "yes", "no", "y", "n"}
+    NULL_VALUES = ["", "NULL", "null", "N/A", "NA", "None"]
+
+    def profile_locally(self, sample_data: str) -> Optional[Dict[str, Any]]:
+        """Build a profile from delimited data directly. Returns None if not delimited."""
+        if not sample_data or not sample_data.strip():
             return None
+
+        detected = self._detect_dialect(sample_data)
+        if detected is None:
+            return None
+
+        delimiter, format_name, quote_char = detected
+
+        try:
+            rows = [
+                row for row in csv.reader(
+                    io.StringIO(sample_data), delimiter=delimiter, quotechar=quote_char
+                )
+                if row
+            ]
+        except csv.Error as e:
+            self.logger.warning(f"Local profiling failed to read rows: {e}")
+            return None
+
+        if len(rows) < 2 or not self._is_rectangular(rows):
+            return None
+
+        has_header = self._has_header(rows)
+        header = rows[0] if has_header else []
+        data_rows = rows[1:] if has_header else rows
+
+        if not data_rows:
+            return None
+
+        width = max(len(row) for row in rows)
+        columns = []
+        date_formats = set()
+
+        for position in range(width):
+            values = [row[position] if position < len(row) else "" for row in data_rows]
+            present = [v for v in values if v.strip()]
+
+            name = (
+                header[position].strip()
+                if position < len(header) and header[position].strip()
+                else f"column_{position + 1}"
+            )
+            data_type, matched_format = self._infer_type(present)
+            if matched_format:
+                date_formats.add(matched_format)
+
+            columns.append({
+                "name": name,
+                "position": position,
+                "data_type": data_type,
+                "nullable": len(present) < len(values),
+                "samples": self._pick_samples(present),
+            })
+
+        return {
+            "format": format_name,
+            "delimiter": delimiter,
+            "quote_char": quote_char,
+            "encoding": "UTF-8",
+            "has_header": has_header,
+            "columns": columns,
+            "date_formats": sorted(date_formats),
+            "null_representations": [v for v in self.NULL_VALUES if v],
+            "row_count_sample": len(data_rows),
+            "notes": f"Profiled locally from {len(data_rows)} sample rows.",
+        }
+
+    def _detect_dialect(self, sample_data: str):
+        """Return (delimiter, format_name, quote_char), or None if not delimited."""
+        head = sample_data[:8192]
+        quote_char = '"'
+
+        try:
+            sniffed = csv.Sniffer().sniff(head, delimiters="".join(
+                d for d, _ in self.DELIMITER_CANDIDATES
+            ))
+            delimiter = sniffed.delimiter
+            quote_char = sniffed.quotechar or '"'
+        except csv.Error:
+            # The sniffer gives up on short or irregular samples; count instead
+            first_line = head.splitlines()[0] if head.splitlines() else ""
+            counts = {d: first_line.count(d) for d, _ in self.DELIMITER_CANDIDATES}
+            delimiter = max(counts, key=counts.get)
+            if counts[delimiter] == 0:
+                return None
+
+        format_name = next(
+            (name for d, name in self.DELIMITER_CANDIDATES if d == delimiter),
+            "delimited",
+        )
+        return delimiter, format_name, quote_char
+
+    def _is_rectangular(self, rows: List[List[str]]) -> bool:
+        """Delimited data has a consistent field count; prose with commas does not."""
+        widths = [len(row) for row in rows]
+        modal = max(set(widths), key=widths.count)
+
+        if modal < 2:
+            return False
+
+        return widths.count(modal) / len(widths) >= 0.8
+
+    def _has_header(self, rows: List[List[str]]) -> bool:
+        """A header row is all non-empty, non-numeric, and distinct."""
+        first = rows[0]
+        if not first or any(not cell.strip() for cell in first):
+            return False
+        if len(set(first)) != len(first):
+            return False
+        return not any(self._is_number(cell) for cell in first)
+
+    def _pick_samples(self, values: List[str]) -> List[str]:
+        """Up to MAX_SAMPLES distinct values, each truncated."""
+        samples = []
+        for value in values:
+            trimmed = value.strip()
+            if trimmed not in samples:
+                samples.append(trimmed[:self.MAX_SAMPLE_LENGTH])
+            if len(samples) == self.MAX_SAMPLES:
+                break
+        return samples
+
+    def _infer_type(self, values: List[str]):
+        """Return (data_type, date_format_label) for a column's non-empty values."""
+        if not values:
+            return "string", None
+
+        if all(self._is_integer(v) for v in values):
+            return "integer", None
+        if all(self._is_number(v) for v in values):
+            return "float", None
+        if all(v.strip().lower() in self.BOOLEAN_VALUES for v in values):
+            return "boolean", None
+
+        for fmt, label in self.DATETIME_FORMATS:
+            if all(self._matches_format(v, fmt) for v in values):
+                return "datetime", label
+        for fmt, label in self.DATE_FORMATS:
+            if all(self._matches_format(v, fmt) for v in values):
+                return "date", label
+
+        return "string", None
+
+    @staticmethod
+    def _matches_format(value: str, fmt: str) -> bool:
+        try:
+            datetime.strptime(value.strip(), fmt)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _is_integer(value: str) -> bool:
+        try:
+            int(value.strip())
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _is_number(value: str) -> bool:
+        try:
+            float(value.strip())
+            return True
+        except ValueError:
+            return False
 
     def validate_profile(self, profile: Dict[str, Any]) -> bool:
         """

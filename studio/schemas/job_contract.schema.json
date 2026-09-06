@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UDC01 Job Contract",
+  "description": "Universal protocol for data conversion jobs",
+  "type": "object",
+  "required": ["job_type", "inputs", "constraints"],
+  "properties": {
+    "job_type": {
+      "type": "string",
+      "enum": ["verification", "conversion", "validation", "profiling", "yaml_generation"],
+      "description": "Type of job to execute"
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Input data and configuration for the job",
+      "properties": {
+        "data": {
+          "type": "string",
+          "description": "Primary data payload"
+        },
+        "config": {
+          "type": "object",
+          "description": "Configuration object for processing"
+        },
+        "sample_data": {
+          "type": "string",
+          "description": "Sample data for profiling or analysis"
+        },
+        "target_format": {
+          "type": "string",
+          "description": "Desired output format"
+        },
+        "user_instructions": {
+          "type": "string",
+          "description": "Additional user-provided instructions"
+        },
+        "output": {
+          "type": "string",
+          "description": "Output data for validation jobs"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "description": "Processing constraints and requirements",
+      "properties": {
+        "consensus": {
+          "type": "string",
+          "enum": ["2_of_3", "unanimous", "majority"],
+          "default": "2_of_3",
+          "description": "Consensus requirement for multi-agent verification"
+        },
+        "retry_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum number of retry attempts"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600,
+          "default": 600,
+          "description": "Maximum execution time in seconds"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Job metadata and tracking information",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "description": "Unique identifier for this job"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when job was submitted"
+        },
+        "client_version": {
+          "type": "string",
+          "description": "Version of the client submitting the job"
+        },
+        "organization_id": {
+          "type": "string",
+          "description": "Organization identifier (cloud mode only)"
+        }
+      }
+    }
+  }
+}

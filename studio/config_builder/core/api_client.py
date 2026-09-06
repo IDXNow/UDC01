@@ -64,17 +64,10 @@ class UDCClient(ABC):
         Returns:
             Conversion result dictionary
         """
-        # If previous_notes provided, replace the placeholder in the request message
-        if previous_notes and "data_conversion_request_msg" in config:
-            config = config.copy()
-            config["data_conversion_request_msg"] = config["data_conversion_request_msg"].replace(
-                "{{<!--PreviousConversionNotes-->}}",
-                previous_notes
-            )
-
+        # UDC01 substitutes {<!--PreviousConversionNotes-->} itself, from prev_note
         job = {
             "job_type": "conversion",
-            "inputs": {"data": data, "config": config},
+            "inputs": {"data": data, "config": config, "previous_notes": previous_notes},
             "constraints": {"consensus": "2_of_3", "retry_limit": 1}  # We handle retries at builder level
         }
         return self.run_job(job)
@@ -143,8 +136,14 @@ class LocalUDCClient(UDCClient):
                 result = self.convert_func(
                     inputs["data"],
                     inputs["config"],
-                    run_index=0
+                    run_index=0,
+                    prev_note=inputs.get("previous_notes", "")
                 )
+
+                # Lift the agent error to caller
+                if isinstance(result, dict) and result.get("error"):
+                    return {"status": "failed", "error": result["error"], "job_type": job_type}
+
                 return {"status": "completed", "result": result}
 
             elif job_type == "validation":
@@ -173,13 +172,15 @@ class CloudUDCClient(UDCClient):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
 
-        self.base_url = config["cloud"]["api_base_url"].rstrip('/')
-        self.api_key = os.getenv(config["cloud"]["api_key_env"])
-        self.org_id = config["cloud"].get("organization_id")
+        cloud_cfg = config.get("cloud_managed_api") or config["cloud"]
+
+        self.base_url = cloud_cfg["api_base_url"].rstrip('/')
+        self.api_key = os.getenv(cloud_cfg["api_key_env"])
+        self.org_id = cloud_cfg.get("organization_id")
 
         if not self.api_key:
             raise ValueError(
-                f"API key required.  Set {config['cloud']['api_key_env']} "
+                f"API key required.  Set {cloud_cfg['api_key_env']} "
                 "environment variable."
             )
 
@@ -296,12 +297,9 @@ class CloudUDCClient(UDCClient):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
+            # Raise to builder
             self.logger.error(f"Failed to retrieve base config: {e}")
-            # Return minimal fallback config
-            return {
-                "api_base_url": self.base_url,
-                "default_temperature": 0.3
-            }
+            raise
 
 
 def create_client(config: Dict[str, Any]) -> UDCClient:

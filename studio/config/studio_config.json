@@ -25,7 +25,9 @@
     "templates_path": "studio/config_builder/templates/",
     "validation_strictness": "standard",
     "retry_limit": 3,
-    "consensus_requirement": "2_of_3"
+    "consensus_requirement": "2_of_3",
+    "verification_enabled": true,
+    "include_prior_output_on_retry": false
   },
 
   "ui": {

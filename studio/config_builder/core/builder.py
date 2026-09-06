@@ -63,6 +63,8 @@ class ConfigurationBuilder:
         """
         Step 2: Analyze data structure and extract profile
 
+        Delimited data is profiled locally; the LLM handles unstructured input and any request carrying custom instructions.
+
         Args:
             sample_data: Sample data to profile
             custom_instructions: Optional user-provided profiling instructions
@@ -70,65 +72,106 @@ class ConfigurationBuilder:
         Returns:
             Dictionary with status, profile, and metadata
         """
-        self.logger.info("Profiling data structure...")
+        if not custom_instructions or not custom_instructions.strip():
+            local_profile = self.profiler.profile_locally(sample_data)
 
-        # Build profiling configuration
+            if local_profile and self.profiler.validate_profile(local_profile):
+                local_profile["profiled_by"] = "local"
+                self.logger.info("Profiled delimited data locally, no LLM call needed")
+                return {
+                    "status": "success",
+                    "profile": self.profiler.enrich_profile(local_profile, sample_data)
+                }
+
+        return self._profile_with_llm(sample_data, custom_instructions)
+
+    def _profile_with_llm(self, sample_data: str, custom_instructions: str) -> Dict[str, Any]:
+        """Profile via the agent, retrying with feedback about what went wrong."""
+        self.logger.info("Profiling data structure with LLM...")
+
+        retry_limit = max(1, self.config.get("generation", {}).get("retry_limit", 3))
+        previous_notes = ""
+
         profile_config = self.profiler.build_profiling_config(self.base_config, custom_instructions)
-
-        # Ensure required fields are present
         profile_config = self._ensure_required_fields(profile_config)
 
-        # Run conversion (analysis) through client
         try:
-            analysis_result = self.client.convert_data(sample_data, profile_config)
+            for attempt in range(1, retry_limit + 1):
+                self.logger.info(f"Profiling attempt {attempt}/{retry_limit}")
 
-            if "error" in analysis_result:
-                return {
-                    "status": "failed",
-                    "reason": analysis_result["error"]
-                }
+                analysis_result = self.client.convert_data(
+                    sample_data, profile_config, previous_notes=previous_notes
+                )
 
-            # Parse structured profile from result
-            profile = self.profiler.parse_profile_result(analysis_result)
+                if "error" in analysis_result:
+                    reason = self._explain_failure(analysis_result["error"])
+                    if attempt < retry_limit:
+                        previous_notes = f"Attempt {attempt} failed with error: {reason}"
+                        self.logger.warning(f"Profiling attempt {attempt} failed, retrying...")
+                        continue
+                    return {"status": "failed", "reason": reason}
 
-            if not profile:
-                return {
-                    "status": "failed",
-                    "reason": "Failed to parse profile from result"
-                }
+                profile, parse_error = self.profiler.parse_profile_result_verbose(analysis_result)
 
-            # Validate profile structure
-            if not self.profiler.validate_profile(profile):
-                return {
-                    "status": "failed",
-                    "reason": "Profile validation failed - missing required fields"
-                }
-
-            # Enrich profile with metadata
-            profile = self.profiler.enrich_profile(profile, sample_data)
-
-            # Validate profile with consensus (optional - can be disabled for performance)
-            if self.config.get("generation", {}).get("validate_profile", False):
-                validation = self._validate_profile(sample_data, profile)
-                if not self._check_consensus(validation):
+                if profile is None:
+                    if attempt < retry_limit:
+                        previous_notes = (
+                            f"Attempt {attempt} produced unusable output ({parse_error}). "
+                            "Return ONLY valid JSON inside <o> tags, with every double quote "
+                            "inside a value escaped as \\\", no markdown fences and no comments."
+                        )
+                        self.logger.warning(f"Profile parsing failed on attempt {attempt}: {parse_error}")
+                        continue
                     return {
                         "status": "failed",
-                        "reason": "Profile validation consensus failed",
-                        "validation": validation
+                        "reason": self._explain_failure(parse_error or "could not parse the profile")
                     }
 
-            self.logger.info("Data profiling completed successfully")
-            return {
-                "status": "success",
-                "profile": profile
-            }
+                if not self.profiler.validate_profile(profile):
+                    if attempt < retry_limit:
+                        previous_notes = (
+                            f"Attempt {attempt} returned an incomplete profile. Every entry in "
+                            "'columns' needs both 'name' and 'data_type', and 'format' is required."
+                        )
+                        self.logger.warning(f"Profile validation failed on attempt {attempt}")
+                        continue
+                    return {
+                        "status": "failed",
+                        "reason": "Profile validation failed - missing required fields"
+                    }
+
+                profile["profiled_by"] = "llm"
+                profile = self.profiler.enrich_profile(profile, sample_data)
+
+                # Optional consensus check on the profile itself
+                if self.config.get("generation", {}).get("validate_profile", False):
+                    validation = self._validate_profile(sample_data, profile)
+                    if not self._check_consensus(validation):
+                        return {
+                            "status": "failed",
+                            "reason": "Profile validation consensus failed",
+                            "validation": validation
+                        }
+
+                self.logger.info(f"Data profiling completed on attempt {attempt}")
+                return {"status": "success", "profile": profile}
 
         except Exception as e:
             self.logger.error(f"Profiling failed: {e}")
-            return {
-                "status": "failed",
-                "reason": str(e)
-            }
+            return {"status": "failed", "reason": self._explain_failure(str(e))}
+
+    def _explain_failure(self, reason: str) -> str:
+        """Add a hint when the message points at a known configuration limit."""
+        lowered = str(reason).lower()
+
+        if "context" in lowered and ("exceed" in lowered or "length" in lowered):
+            return (
+                f"{reason}\n\nThe model's context window was exceeded. Lower "
+                "'default_max_tokens' for this provider in udc01/default_config.json, "
+                "or load a model with a larger context."
+            )
+
+        return str(reason)
 
     def generate_yaml_config(self, profile: Dict[str, Any],
                             output_format: str,
@@ -194,6 +237,22 @@ class ConfigurationBuilder:
                     return {
                         "status": "failed",
                         "reason": "Failed to extract YAML from result after all retries"
+                    }
+
+                # Studio top-level settings
+                yaml_config = self.yaml_generator.apply_runtime_settings(yaml_config)
+
+                # Local schema check
+                schema_error = self._validate_yaml_schema(yaml_config)
+
+                if schema_error:
+                    if attempt < retry_limit:
+                        previous_notes = f"Attempt {attempt} produced an invalid UDC01 config: {schema_error}"
+                        self.logger.warning(f"Schema validation failed on attempt {attempt}: {schema_error}")
+                        continue
+                    return {
+                        "status": "failed",
+                        "reason": f"Generated config is not valid for UDC01: {schema_error}"
                     }
 
                 # Validate YAML with 2/3 consensus
@@ -337,6 +396,34 @@ Validate this profile."""
             "results": results
         }
 
+    def _validate_yaml_schema(self, yaml_config: str) -> Optional[str]:
+        """Parse the YAML and run UDC01's own conversion-config validator.
+
+        Returns an error message, or None when the config is valid.
+        """
+        import yaml as yaml_lib
+
+        try:
+            yaml_data = yaml_lib.safe_load(yaml_config)
+        except yaml_lib.YAMLError as e:
+            return f"YAML is not parseable: {e}"
+
+        if not isinstance(yaml_data, dict):
+            return "YAML did not parse to a mapping of configuration keys"
+
+        try:
+            from udc01.converter import validate_conversion_yaml
+        except ImportError as e:
+            self.logger.warning(f"Skipping schema validation, udc01 unavailable: {e}")
+            return None
+
+        try:
+            validate_conversion_yaml(yaml_data, "<studio-generated>")
+        except ValueError as e:
+            return str(e)
+
+        return None
+
     def _check_consensus(self, validation_results: List[Dict[str, Any]]) -> bool:
         """Check if 2/3 consensus achieved"""
         approved = sum(1 for r in validation_results if r.get("isvalid", False))
@@ -352,13 +439,41 @@ Validate this profile."""
         Returns:
             Config with required fields guaranteed
         """
-        # Ensure default_model and default_temperature are present
-        if "default_model" not in config:
-            config["default_model"] = self.config.get("local", {}).get("default_model", "openai/gpt-oss-20b")
+        local = self.config.get("local", {})
+        default_provider = self.base_config.get("default_provider", "local")
+        profile = self.base_config.get("providers", {}).get(default_provider, {})
+
+        # Moved to provider profile
+        def needs(key):
+            return not str(config.get(key, "")).strip()
+
+        if needs("default_model"):
+            config["default_model"] = (
+                local.get("default_model") or profile.get("default_model") or ""
+            )
         if "default_temperature" not in config:
-            config["default_temperature"] = self.config.get("local", {}).get("default_temperature", 1)
-        if "default_endpoint" not in config:
-            config["default_endpoint"] = self.config.get("local", {}).get("default_endpoint", "v1/chat/completions")
+            config["default_temperature"] = local.get(
+                "default_temperature", profile.get("default_temperature", 1)
+            )
+        if needs("default_endpoint"):
+            config["default_endpoint"] = (
+                local.get("default_endpoint")
+                or profile.get("endpoint")
+                or "v1/chat/completions"
+            )
+
+        # Token/temperature handling added to UDC01 core
+        if "token_param" not in config:
+            config["token_param"] = local.get(
+                "token_param", profile.get("token_param", "max_tokens")
+            )
+        if "supports_temperature" not in config:
+            config["supports_temperature"] = local.get(
+                "supports_temperature", profile.get("supports_temperature", True)
+            )
+        max_tokens = local.get("default_max_tokens", profile.get("default_max_tokens"))
+        if max_tokens is not None and "default_max_tokens" not in config:
+            config["default_max_tokens"] = max_tokens
 
         # Ensure providers and api_keys are present (required by updated UDC01)
         if "providers" not in config:
@@ -438,18 +553,23 @@ Validate this profile."""
     def _get_default_config(self) -> Dict[str, Any]:
         """Return default UDC01 configuration"""
 
+        local = self.config.get("local", {})
+        base_url = local.get("api_base_url", "http://localhost:1234")
+
         return {
-            "api_base_url": self.config.get("local", {}).get("api_base_url", "http://localhost:1234/"),
-            "default_model": self.config.get("local", {}).get("default_model", "granite-3.1-8b-instruct"),
-            "default_endpoint": "v1/chat/completions",
-            "default_temperature": 1.0,
             "default_provider": "local",
+            "default_model": local.get("default_model", "qwen/qwen3.8-27b"),
+            "default_temperature": local.get("default_temperature", 1.0),
+            "include_prior_output_on_retry": False,
+            "verification": {"enabled": True},
             "providers": {
                 "local": {
-                    "base_url": self.config.get("local", {}).get("api_base_url", "http://localhost:1234"),
-                    "endpoint": "v1/chat/completions",
+                    "base_url": base_url,
+                    "endpoint": local.get("default_endpoint", "v1/chat/completions"),
                     "auth_header": None,
-                    "request_format": "openai"
+                    "request_format": "openai",
+                    "default_max_tokens": local.get("default_max_tokens", 32000),
+                    "default_model": local.get("default_model", "qwen/qwen3.8-27b")
                 }
             },
             "api_keys": {},

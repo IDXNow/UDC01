@@ -1,6 +1,10 @@
 # UDC01 Configuration Template: JSON Format
 # This template handles JSON array output
 
+# Runtime settings (Studio overwrites these from Advanced Settings)
+verification: { enabled: true }
+include_prior_output_on_retry: false
+
 data_conversion_system_msg: |
   You are a data conversion agent specializing in JSON format transformation.
 
