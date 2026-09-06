@@ -4,11 +4,14 @@ UDC01 starts with a local LLM server by default, but its real power comes from m
 
 ## Overview
 
-UDC01 speaks to four provider types out of the box:
-- **local**: Your local LLM server (default, no API key required)
-- **openai**: OpenAI API (GPT-5.2, GPT-4.1, etc.)
+UDC01 speaks to five provider types out of the box:
+- **local**: any endpoint that speaks the OpenAI chat-completions format - LM Studio on port `1234` by default, but equally vLLM, llama.cpp, a LiteLLM proxy, or Azure OpenAI
+- **ollama**: Ollama on port `11434`, through its OpenAI-compatible endpoint (no API key required)
+- **openai**: OpenAI API (GPT models.)
 - **anthropic**: Anthropic API (Claude models)
 - **google**: Google AI API (Gemini models)
+
+`local` is a name, not a constraint - nothing in it assumes localhost, and it takes an `auth_header` and an `api_keys` entry like any other profile when the endpoint needs credentials.  For worked profiles (vLLM, LiteLLM, Azure), model naming, reasoning-model behaviour, and token headroom, see [Custom Endpoints in CONFIGURATION.md](CONFIGURATION.md#custom-endpoints-the-local-profile).
 
 ## Configuration Structure
 
@@ -30,7 +33,8 @@ The `providers` section in your config file defines the connection details for e
       "endpoint": "v1/chat/completions",
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
-      "request_format": "openai"
+      "request_format": "openai",
+      "token_param": "max_completion_tokens"
     },
     "anthropic": {
       "base_url": "https://api.anthropic.com",
@@ -39,14 +43,17 @@ The `providers` section in your config file defines the connection details for e
       "auth_prefix": "",
       "version_header": "anthropic-version",
       "version": "2023-06-01",
-      "request_format": "anthropic"
+      "request_format": "anthropic",
+      "supports_temperature": false,
+      "default_max_tokens": 32000
     },
     "google": {
       "base_url": "https://generativelanguage.googleapis.com",
       "endpoint": "v1beta/models/{model}:generateContent",
       "auth_header": "x-goog-api-key",
       "auth_prefix": "",
-      "request_format": "google"
+      "request_format": "google",
+      "supports_temperature": false
     }
   }
 }
@@ -159,7 +166,7 @@ When you need a specific agent to use a different provider - say, a frontier mod
         "name": "Jane Dirac",
         "role": "verify",
         "provider": "anthropic",       // Override to use Anthropic
-        "model": "claude-3-5-sonnet",
+        "model": "claude-sonnet-5",
         "temperature": 1
       },
       {
@@ -214,7 +221,8 @@ This is the first thing to enable when tracking down authentication issues or pr
       "endpoint": "v1/chat/completions",
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
-      "request_format": "openai"
+      "request_format": "openai",
+      "token_param": "max_completion_tokens"
     },
     "anthropic": {
       "base_url": "https://api.anthropic.com",
@@ -223,14 +231,17 @@ This is the first thing to enable when tracking down authentication issues or pr
       "auth_prefix": "",
       "version_header": "anthropic-version",
       "version": "2023-06-01",
-      "request_format": "anthropic"
+      "request_format": "anthropic",
+      "supports_temperature": false,
+      "default_max_tokens": 16000
     },
     "google": {
       "base_url": "https://generativelanguage.googleapis.com",
       "endpoint": "v1beta/models/{model}:generateContent",
       "auth_header": "x-goog-api-key",
       "auth_prefix": "",
-      "request_format": "google"
+      "request_format": "google",
+      "supports_temperature": false
     }
   },
 
@@ -250,8 +261,7 @@ This is the first thing to enable when tracking down authentication issues or pr
         "name": "Chris Einstein",
         "role": "verify",
         "provider": "openai",
-        "model": "gpt-4o-mini",
-        "temperature": 0.1
+        "model": "gpt-5.6-terra"
       },
       {
         "name": "Nathan Fourier",
@@ -262,8 +272,8 @@ This is the first thing to enable when tracking down authentication issues or pr
       "name": "Ted Sagan",
       "role": "convert",
       "provider": "anthropic",
-      "model": "claude-3-5-sonnet",
-      "temperature": 0.2
+      "model": "claude-sonnet-5",
+      "reasoning_effort": "medium"
     },
     "data_validator": [
       {
@@ -287,22 +297,31 @@ This is the first thing to enable when tracking down authentication issues or pr
 
 ## Supported Models
 
+UDC01 doesn't validate model IDs - what you put in the config is sent to the vendor, so a new model works the day it ships without a code change.  The lists below are a snapshot verified against the live model endpoints on 2026-08-19. For the current list, ask the vendor directly:
+
+```bash
+curl https://api.anthropic.com/v1/models -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01"
+curl https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"
+curl https://generativelanguage.googleapis.com/v1beta/models -H "x-goog-api-key: $GOOGLE_API_KEY"
+```
+
 ### OpenAI
-- `gpt-5`
-- `gpt-5-mini`
-- `gpt-5-nano`
-- `gpt-5.2-pro`
+- `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` - current frontier tier
+- `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`
+- `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`
+- `gpt-5-nano` - deprecated, with a published shutdown date
 
 ### Anthropic Claude
-- `claude-sonnet-4-5`
-- `claude-haiku-4-5`
-- `claude-opus-4-5`
+- `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`
+- `claude-opus-4-8`, `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-opus-4-6`
+- `claude-opus-4-5-20251101`, `claude-haiku-4-5-20251001`, `claude-sonnet-4-5-20250929`
 
 ### Google Gemini
-- `gemini-2.5-flash-lite`
-- `gemini-2.5-flash`
-- `gemini-3-pro-preview`
-- `gemini-3-flash-preview`
+- `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`
+- `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`
+- `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
+
+> Models retire. `claude-3-5-sonnet`, `gemini-2.0-flash`, and `gemini-3-pro-preview` have all been shut down and will 404 if you pin them.
 
 
 ## Testing Your Configuration
@@ -316,7 +335,7 @@ Work from the inside out - start with what you know is working and add providers
 
 The system logs confirm which provider and model each agent used:
 ```
-Agent Ted Sagan (anthropic/claude-4-5-sonnet) completed in 2.34s
+Agent Ted Sagan (anthropic/claude-sonnet-4-5) completed in 2.34s
 ```
 
 ## Things Worth Knowing Going In

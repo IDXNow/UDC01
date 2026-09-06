@@ -53,6 +53,8 @@ DEFAULT_CONFIG = {
     "default_model": "openai/gpt-oss-20b",
     "default_endpoint": "v1/chat/completions",
     "default_temperature": None,
+    "supports_temperature": True,
+    "token_param": "max_tokens",
     "max_retries": 3,
     "include_prior_output_on_retry": False,
     "api_timeout": 600,
@@ -67,7 +69,8 @@ DEFAULT_CONFIG = {
             "base_url": "http://localhost:1234",
             "endpoint": "v1/chat/completions",
             "auth_header": None,
-            "request_format": "openai"
+            "request_format": "openai",
+            "default_max_tokens": 32000
         }
     },
     "api_keys": {},
@@ -84,6 +87,15 @@ DEFAULT_CONFIG = {
         "file_extension": "log"
     }
 }
+
+
+def _resolve_setting(role_override, provider_cfg: dict, config: dict, key: str, fallback=None):
+    """Resolve a provider-scoped default: role-group -> provider profile -> global config."""
+    if role_override is not None:
+        return role_override
+    if key in provider_cfg:
+        return provider_cfg[key]
+    return config.get(key, fallback)
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -224,7 +236,8 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                     "base_url": "http://localhost:1234",
                     "endpoint": config.get("default_endpoint", "v1/chat/completions"),
                     "auth_header": None,
-                    "request_format": "openai"
+                    "request_format": "openai",
+                    "default_max_tokens": 32000
                 }
             }
 
@@ -242,6 +255,8 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                 role_thinking_override = agent_group.get("default_thinking_budget")
                 role_effort_override = agent_group.get("default_reasoning_effort")
                 role_max_tokens_override = agent_group.get("default_max_tokens")
+                role_supports_temp_override = agent_group.get("default_supports_temperature")
+                role_token_param_override = agent_group.get("default_token_param")
                 inner = agent_group["agents"]
                 agents_list = inner if isinstance(inner, list) else [inner]
             elif isinstance(agent_group, list):
@@ -251,6 +266,8 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                 role_thinking_override = None
                 role_effort_override = None
                 role_max_tokens_override = None
+                role_supports_temp_override = None
+                role_token_param_override = None
                 agents_list = agent_group
             else:
                 # Single agent dict
@@ -260,57 +277,29 @@ def load_config(config_path: str, conversion_path: str) -> dict:
                 role_thinking_override = None
                 role_effort_override = None
                 role_max_tokens_override = None
+                role_supports_temp_override = None
+                role_token_param_override = None
                 agents_list = [agent_group]
 
-            provider_config = config["providers"].get(role_provider, {})
-
-            # Resolve default model: role-level explicit -> role provider's default_model -> global fallback
-            if role_model_override is not None:
-                role_default_model = role_model_override
-            elif "default_model" in provider_config:
-                role_default_model = provider_config["default_model"]
-            else:
-                role_default_model = config.get("default_model", "openai/gpt-oss-20b")
-
-            # Resolve default temperature: role-level explicit -> provider's default_temperature -> None (omit)
-            if role_temp_override is not None:
-                role_default_temperature = role_temp_override
-            elif "default_temperature" in provider_config:
-                role_default_temperature = provider_config["default_temperature"]
-            else:
-                role_default_temperature = None
-
-            # Resolve thinking_budget: role-level -> provider profile -> None (omit)
-            if role_thinking_override is not None:
-                role_default_thinking_budget = role_thinking_override
-            elif "default_thinking_budget" in provider_config:
-                role_default_thinking_budget = provider_config["default_thinking_budget"]
-            else:
-                role_default_thinking_budget = None
-
-            # Resolve reasoning_effort: role-level -> provider profile -> None (omit)
-            if role_effort_override is not None:
-                role_default_reasoning_effort = role_effort_override
-            elif "default_reasoning_effort" in provider_config:
-                role_default_reasoning_effort = provider_config["default_reasoning_effort"]
-            else:
-                role_default_reasoning_effort = None
-
-            # Resolve max_tokens: role-level -> provider profile -> None (provider handles its own default)
-            if role_max_tokens_override is not None:
-                role_default_max_tokens = role_max_tokens_override
-            elif "default_max_tokens" in provider_config:
-                role_default_max_tokens = provider_config["default_max_tokens"]
-            else:
-                role_default_max_tokens = None
-
             for agent in agents_list:
+                # Resolve against the profile this agent actually uses, not the role's.
+                # Naming a profile detaches the agent from the role's parameter defaults.
+                agent_provider = agent.get("provider", role_provider)
+                detached = agent_provider != role_provider
+                ap_cfg = config["providers"].get(agent_provider, {})
+
+                def pick(role_override, key, fallback=None):
+                    return _resolve_setting(None if detached else role_override,
+                                            ap_cfg, config, key, fallback)
+
                 agent["default_provider"] = role_provider
-                agent["default_model"] = role_default_model
-                agent["default_temperature"] = role_default_temperature
-                agent["default_thinking_budget"] = role_default_thinking_budget
-                agent["default_reasoning_effort"] = role_default_reasoning_effort
-                agent["default_max_tokens"] = role_default_max_tokens
+                agent["default_model"] = pick(role_model_override, "default_model", "openai/gpt-oss-20b")
+                agent["default_temperature"] = pick(role_temp_override, "default_temperature")
+                agent["default_thinking_budget"] = pick(role_thinking_override, "default_thinking_budget")
+                agent["default_reasoning_effort"] = pick(role_effort_override, "default_reasoning_effort")
+                agent["default_max_tokens"] = pick(role_max_tokens_override, "default_max_tokens")
+                agent["default_supports_temperature"] = pick(role_supports_temp_override, "supports_temperature", True)
+                agent["default_token_param"] = pick(role_token_param_override, "token_param", "max_tokens")
                 agent["timeout"] = config.get("api_timeout", 600)
                 agent["retry_attempts"] = config.get("api_retry_attempts", 3)
                 agent["retry_backoff"] = config.get("api_retry_backoff", 2)

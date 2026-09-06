@@ -1,5 +1,5 @@
 {
-  "default_provider": "anthropic",
+  "default_provider": "local",
   "max_retries": 3,
   "include_prior_output_on_retry": false,
   "api_timeout": 600,
@@ -15,7 +15,16 @@
       "endpoint": "v1/chat/completions",
       "auth_header": null,
       "request_format": "openai",
-      "default_model": "openai/gpt-oss-20b"
+      "default_max_tokens": 32000,
+      "default_model": "qwen/qwen3.8-27b"
+    },
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "endpoint": "v1/chat/completions",
+      "auth_header": null,
+      "request_format": "openai",
+      "default_max_tokens": 16000,
+      "default_model": "qwen3:8b"
     },
     "openai": {
       "base_url": "https://api.openai.com",
@@ -23,7 +32,9 @@
       "auth_header": "Authorization",
       "auth_prefix": "Bearer",
       "request_format": "openai",
-      "default_model": "gpt-5.4-mini"
+      "token_param": "max_completion_tokens",
+      "default_model": "gpt-5.6-terra",
+      "default_reasoning_effort": "medium"
     },
     "anthropic": {
       "base_url": "https://api.anthropic.com",
@@ -33,6 +44,8 @@
       "version_header": "anthropic-version",
       "version": "2023-06-01",
       "request_format": "anthropic",
+      "supports_temperature": false,
+      "default_max_tokens": 16000,
       "default_model": "claude-sonnet-5"
     },
     "google": {
@@ -41,7 +54,8 @@
       "auth_header": "x-goog-api-key",
       "auth_prefix": "",
       "request_format": "google",
-      "default_model": "gemini-3.5-flash"
+      "supports_temperature": false,
+      "default_model": "gemini-3.6-flash"
     }
   },
   "api_keys": {

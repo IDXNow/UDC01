@@ -151,14 +151,17 @@ pdfplumber
 ### LLM Requirements
 UDC01 works with any combination of local and cloud-hosted models - you're not locked into a single provider.
 
-**Local Models:**
-- Local LLM server (default: http://localhost:1234/)
-- Any OpenAI-compatible API endpoint
+**Self-Hosted & Custom Endpoints:**
+- LM Studio (default: http://localhost:1234/) or Ollama (default: http://localhost:11434/)
+- Any endpoint speaking the OpenAI chat-completions format - vLLM, llama.cpp, a LiteLLM proxy, Azure OpenAI, or a private GPU host
+- Add an `auth_header` and an `api_keys` entry when the endpoint needs credentials; leave them off for localhost
+
+Model IDs are sent exactly as configured, so copy them from `lms ls`, `ollama list`, or your host's model list - namespaces like `openai/gpt-oss-20b` and `meta-llama/Llama-3.3-70B-Instruct` are part of the name.
 
 **Cloud Providers:**
-- **OpenAI**: GPT-5, GPT-5-mini, GPT-5-nano, GPT-5.1
-- **Anthropic**: Claude 4.5 Sonnet, Claude 4.5 Haiku, Claude 4.5 Opus
-- **Google**: Gemini 2.5 Flash, Gemini 2.5 Flash-Lite, Gemini 2.5 Pro, Gemini 3 Pro
+- **OpenAI**: GPT-5, GPT-5-mini, GPT-5-nano, gpt-5.6-terra
+- **Anthropic**: Claude 5 Sonnet, Claude 4.5 Haiku, Claude 5 Opus, Claude 5.1 Fable
+- **Google**: Gemini 3.7 Flash, Gemini 3.5 Flash-Lite, Gemini 3.1 Pro
 
 **Note**: Cloud providers require API keys set as environment variables. See [Cloud Provider Configuration](#cloud-provider-configuration) for details.
 
@@ -181,7 +184,7 @@ UDC01 works with any combination of local and cloud-hosted models - you're not l
    pip install -r requirements.txt
    ```
 
-3. **For Local Models**: Ensure your local LLM API is accessible (default: http://localhost:1234/)
+3. **For Self-Hosted Models**: Ensure your endpoint is reachable (LM Studio default: http://localhost:1234/, Ollama: http://localhost:11434/). Remote endpoints also need `auth_header` and an `api_keys` entry on the profile.
 
 4. **For Cloud Providers**: Set up API keys as environment variables:
    ```powershell
@@ -436,7 +439,7 @@ The `default_config.json` includes provider definitions for all supported servic
   "default_provider": "local",
   "providers": {
     "local": {
-      "base_url": "http://localhost:1235",
+      "base_url": "http://localhost:1234",
       "endpoint": "v1/chat/completions",
       "request_format": "openai"
     },

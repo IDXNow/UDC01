@@ -18,7 +18,9 @@
       "base_url": "http://localhost:1234",
       "endpoint": "v1/chat/completions",
       "auth_header": null,
-      "request_format": "openai"
+      "request_format": "openai",
+      "default_max_tokens": 32000,
+      "default_model": "openai/gpt-oss-20b"
     },
     "openai": {
       "base_url": "https://api.openai.com",
@@ -100,7 +102,7 @@
       "name": "Ted Sagan",
       "role": "convert",
       "provider": "anthropic",
-      "model": "claude-sonnet-5-4",
+      "model": "claude-sonnet-4-5",
       "temperature": 1
     },
     "data_validator": [

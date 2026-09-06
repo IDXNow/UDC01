@@ -65,27 +65,47 @@ def build_provider_headers(provider: str, provider_config: dict, api_keys: dict)
 
     return headers
 
-def format_request_for_provider(provider_config: dict, model: str,
-                                 temperature: float, messages: list,
-                                 thinking_budget: int = None,
-                                 reasoning_effort: str = None,
-                                 max_tokens: int = None) -> dict:
+def format_request_for_provider(
+        provider_config: dict, model: str,
+        temperature: float, messages: list,
+        thinking_budget: int = None,
+        reasoning_effort: str = None,
+        max_tokens: int = None,
+        supports_temperature: bool = None,
+        token_param: str = None) -> dict:
     """Formats the request payload for specific provider."""
     request_format = provider_config.get("request_format", "openai")
-    model_name = model.split("/")[-1] if "/" in model else model
+
+    # Resolved values win; the provider profile is the fallback for direct callers
+    if supports_temperature is None:
+        supports_temperature = provider_config.get("supports_temperature", True)
+    if token_param is None:
+        token_param = provider_config.get("token_param", "max_tokens")
+
+    if reasoning_effort is not None and thinking_budget is not None:
+        logging.warning(f"Both reasoning_effort and thinking_budget set for '{request_format}' - using reasoning_effort")
+        thinking_budget = None
+
+    # Current models reject or ignore sampling params
+    if not supports_temperature:
+        temperature = None
 
     if request_format == "anthropic":
         # Anthropic uses different format: separate system message from messages array
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
         user_messages = [m for m in messages if m["role"] != "system"]
         payload = {
-            "model": model_name,
-            "max_tokens": max_tokens if max_tokens is not None else 10000,
+            "model": model,
+            "max_tokens": max_tokens if max_tokens is not None else 120000,
             "system": system_msg,
             "messages": user_messages
         }
-        if thinking_budget is not None:
-            # Extended thinking: temperature is forced to 1 by the Anthropic API
+        if reasoning_effort is not None:
+            # Current models: adaptive thinking, depth set by effort level
+            payload["thinking"] = {"type": "adaptive"}
+            payload["output_config"] = {"effort": reasoning_effort}
+        elif thinking_budget is not None:
+            # Legacy form for pre-4.6 models: temperature is forced to 1 by the API
             payload["thinking"] = {"type": "enabled", "budget_tokens": thinking_budget}
             payload["temperature"] = 1
         elif temperature is not None:
@@ -93,60 +113,125 @@ def format_request_for_provider(provider_config: dict, model: str,
         return payload
     elif request_format == "google":
         # Google Gemini uses different format: contents with parts
+        system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
         contents = []
         for msg in messages:
-            role = "user" if msg["role"] in ["user", "system"] else "model"
+            if msg["role"] == "system":
+                continue
+            role = "user" if msg["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
         gen_config = {}
         if max_tokens is not None:
             gen_config["maxOutputTokens"] = max_tokens
         if temperature is not None:
             gen_config["temperature"] = temperature
-        if thinking_budget is not None:
-            # Gemini: 0 = disabled, -1 = dynamic, N = token budget
+        if reasoning_effort is not None:
+            gen_config["thinkingConfig"] = {"thinkingLevel": reasoning_effort}
+        elif thinking_budget is not None:
             gen_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
-        return {
+        payload = {
             "contents": contents,
             "generationConfig": gen_config
         }
+        if system_msg:
+            payload["systemInstruction"] = {"parts": [{"text": system_msg}]}
+        return payload
     else:
         # OpenAI format (default for local and openai providers)
         payload = {
-            "model": model_name,
+            "model": model,
             "stream": False,
             "messages": messages
         }
         if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
+            # GPT-5.x requires max_completion_tokens; local servers still want max_tokens
+            payload[token_param] = max_tokens
         if reasoning_effort is not None:
-            # OpenAI o-series: reasoning_effort replaces temperature
+            # Reasoning models: reasoning_effort replaces temperature
             payload["reasoning_effort"] = reasoning_effort
         elif temperature is not None:
             payload["temperature"] = temperature
         return payload
+
+REASONING_TAGS = ("think", "thinking", "reasoning")
+
+
+def strip_reasoning_blocks(text: str) -> str:
+    """Removes <think>-style blocks so reasoning can't reach the tag extractors."""
+    if not text:
+        return ""
+
+    for tag in REASONING_TAGS:
+        text = re.sub(rf"<{tag}\b[^>]*>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
+
+    # Some templates prefill the opening tag, so only the closer arrives - drop the lead-in
+    for tag in REASONING_TAGS:
+        closers = list(re.finditer(rf"</{tag}>", text, re.IGNORECASE))
+        if closers:
+            text = text[closers[-1].end():]
+
+    # An unclosed opener means the response was cut off mid-thought; nothing usable follows
+    for tag in REASONING_TAGS:
+        if re.search(rf"<{tag}\b[^>]*>", text, re.IGNORECASE):
+            return ""
+
+    return text.strip()
+
 
 def parse_provider_response(provider_config: dict, response_data: dict) -> dict:
     """Parses provider-specific response to standard format."""
     request_format = provider_config.get("request_format", "openai")
 
     if request_format == "anthropic":
-        return {
-            "role": "assistant",
-            "content": response_data["content"][0]["text"]
-        }
+        # Thinking blocks precede the answer, so scan rather than assume position 0
+        blocks = response_data.get("content", [])
+        text = next((b.get("text") for b in blocks if b.get("type") == "text"), None)
+        if text is None:
+            stop_reason = response_data.get("stop_reason", "unknown")
+            raise ValueError(f"No text block in Anthropic response (stop_reason: {stop_reason})")
+        return {"role": "assistant", "content": text}
     elif request_format == "google":
-        return {
-            "role": "assistant",
-            "content": response_data["candidates"][0]["content"]["parts"][0]["text"]
-        }
+        candidates = response_data.get("candidates", [])
+        if not candidates:
+            raise ValueError("No candidates in Gemini response")
+        # A blocked or truncated candidate can carry no parts at all
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = next((p["text"] for p in parts if "text" in p and not p.get("thought")), None)
+        if text is None:
+            finish_reason = candidates[0].get("finishReason", "unknown")
+            raise ValueError(f"No text part in Gemini response (finishReason: {finish_reason})")
+        return {"role": "assistant", "content": text}
     else:
         # OpenAI format (default)
-        return response_data["choices"][0]["message"]
+        choices = response_data.get("choices", [])
+        if not choices:
+            raise ValueError("No choices in response")
+        message = dict(choices[0].get("message") or {})
+        finish_reason = choices[0].get("finish_reason", "unknown")
+
+        # LM Studio returns reasoning_content, Ollama returns reasoning - keep both out of content
+        for field in ("reasoning_content", "reasoning"):
+            if field in message:
+                message["_reasoning"] = message.pop(field)
+                break
+
+        content = message.get("content") or ""
+        if content and provider_config.get("strip_reasoning", True):
+            stripped = strip_reasoning_blocks(content)
+            if not stripped:
+                logging.warning(
+                    f"Response was entirely reasoning, no answer returned "
+                    f"(finish_reason: {finish_reason}, {len(content)} chars)"
+                )
+            message["content"] = stripped
+        return message
 
 def prepare_agent(agent_cfg: dict, config: dict):
     """Fill in default runtime attributes only if not already set by config injection."""
     agent_cfg.setdefault("default_model", config.get("default_model", ""))
     agent_cfg.setdefault("default_temperature", config.get("default_temperature"))
+    agent_cfg.setdefault("default_supports_temperature", config.get("supports_temperature", True))
+    agent_cfg.setdefault("default_token_param", config.get("token_param", "max_tokens"))
 
 
 def run_2of3_consensus(agents: list, payload_builder, config: dict, agent_type: str) -> list:
@@ -347,18 +432,22 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
     provider = get_provider(agent_config)
     providers = agent_config.get("providers", {})
 
-    # determine model: agent's explicit model --> provider's default_model --> global default_model
+    # determine model: agent's explicit model --> resolved default --> provider profile (uninjected agents)
     if "model" in agent_config:
         model = agent_config["model"]
+    elif agent_config.get("default_model"):
+        model = agent_config["default_model"]
     elif provider in providers and "default_model" in providers[provider]:
         model = providers[provider]["default_model"]
     else:
-        model = agent_config.get("default_model", "openai/gpt-oss-20b")
+        model = "openai/gpt-oss-20b"
 
     temperature = agent_config.get("temperature", agent_config.get("default_temperature"))
     thinking_budget = agent_config.get("thinking_budget", agent_config.get("default_thinking_budget"))
     reasoning_effort = agent_config.get("reasoning_effort", agent_config.get("default_reasoning_effort"))
     max_tokens = agent_config.get("max_tokens", agent_config.get("default_max_tokens"))
+    supports_temperature = agent_config.get("supports_temperature", agent_config.get("default_supports_temperature"))
+    token_param = agent_config.get("token_param", agent_config.get("default_token_param"))
 
     if provider not in providers:
         logging.error(f"Provider '{provider}' not found in configuration")
@@ -390,7 +479,9 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         provider_config, model, temperature, messages,
         thinking_budget=thinking_budget,
         reasoning_effort=reasoning_effort,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
+        supports_temperature=supports_temperature,
+        token_param=token_param
     )
 
     # Retry loop with exponential backoff
@@ -422,10 +513,11 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
 
             return result
 
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, KeyError, IndexError, ValueError, TypeError) as e:
+            # Response-shape errors are caught too, so they retry and report like any other failure
             last_error = e
             # get detailed error message from response
-            error_detail = str(e)
+            error_detail = f"{type(e).__name__}: {e}"
             if hasattr(e, 'response') and e.response is not None:
                 try:
                     error_json = e.response.json()
@@ -434,7 +526,8 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
                         err = error_json['error']
                         if isinstance(err, dict):
                             msg = err.get('message', err)
-                            error_type = err.get('type', 'unknown')
+                            # Google returns 'status' where OpenAI/Anthropic return 'type'
+                            error_type = err.get('type', err.get('status', 'unknown'))
                             error_code = err.get('code', '')
                             error_detail = f"{e}\n  Error Type: {error_type}\n  Message: {msg}"
                             if error_code:
@@ -467,7 +560,7 @@ def run_agent(agent_config: dict, payload: dict) -> dict:
         }
     }
 
-def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last: bool = False) -> str | None:
+def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last: bool = False, last: bool = False) -> str | None:
     """
     Extracts the string between the specified start and end tags.
 
@@ -475,6 +568,8 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last:
         s_value: The string to search within.
         start_tag: The opening tag (e.g., "<isvalid>").
         end_tag: The closing tag (e.g., "</isvalid>").
+        first_last: Span from the first start tag to the last end tag.
+        last: Return the last tag pair rather than the first.
 
     Returns:
         The string between the tags if both are found, otherwise None.
@@ -506,7 +601,14 @@ def get_str_between_tags(s_value: str, start_tag: str, end_tag: str, first_last:
         start_tag = re.escape(start_tag) 
         end_tag = re.escape(end_tag) 
 
-        match = re.search(f"{start_tag}(.*?){end_tag}", s_value, re.DOTALL | re.IGNORECASE)
+        pattern = f"{start_tag}(.*?){end_tag}"
+
+        if last:
+            # Reasoning models rehearse answers; the final tag pair is the real one
+            matches = re.findall(pattern, s_value, re.DOTALL | re.IGNORECASE)
+            return matches[-1].strip() if matches else None
+
+        match = re.search(pattern, s_value, re.DOTALL | re.IGNORECASE)
 
         if match:
             return match.group(1).strip()
@@ -521,11 +623,11 @@ def parse_isvalid(result_string: str) -> dict:
     """
     result = {}
 
-    isvalid_text = get_str_between_tags(result_string, "<isvalid>", "</isvalid>")
+    isvalid_text = get_str_between_tags(result_string, "<isvalid>", "</isvalid>", last=True)
     if isvalid_text:
         result["isvalid"] = isvalid_text.lower() == "true"
 
-    invalid_msg = get_str_between_tags(result_string, "<invalid_msg>", "</invalid_msg>")
+    invalid_msg = get_str_between_tags(result_string, "<invalid_msg>", "</invalid_msg>", last=True)
     if invalid_msg:
         result["invalid_msg"] = invalid_msg
 

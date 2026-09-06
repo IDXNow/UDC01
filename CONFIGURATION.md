@@ -9,6 +9,7 @@ Configuration is where you shape UDC01 to your specific environment - which mode
 - [Configuration Files Overview](#configuration-files-overview)
 - [Runtime Priority: Which Value Wins?](#runtime-priority-which-value-wins)
 - [Provider Profiles](#provider-profiles)
+- [Custom Endpoints (the local profile)](#custom-endpoints-the-local-profile)
 - [Agent Configuration Hierarchy](#agent-configuration-hierarchy)
   - [Level 1 - Global Default](#level-1--global-default)
   - [Level 2 - Role-Group Default](#level-2--role-group-default)
@@ -76,8 +77,9 @@ The `providers` section is where you define connection details for each LLM serv
     "endpoint": "v1/messages",
     "auth_header": "x-api-key",
     "request_format": "anthropic",
-    "default_model": "claude-sonnet-4-5",
-    "default_temperature": 1
+    "default_model": "claude-sonnet-5",
+    "supports_temperature": false,
+    "default_max_tokens": 16000
   },
   "google": {
     "base_url": "https://generativelanguage.googleapis.com",
@@ -91,7 +93,15 @@ The `providers` section is where you define connection details for each LLM serv
     "base_url": "http://localhost:1234",
     "endpoint": "v1/chat/completions",
     "request_format": "openai",
-    "default_model": "my-local-model"
+    "default_max_tokens": 16000,
+    "default_model": "openai/gpt-oss-20b"
+  },
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "endpoint": "v1/chat/completions",
+    "request_format": "openai",
+    "default_max_tokens": 16000,
+    "default_model": "qwen3:8b"
   }
 }
 ```
@@ -107,6 +117,88 @@ The `providers` section is where you define connection details for each LLM serv
 | `auth_prefix` | No | Prefix before the API key (e.g. `"Bearer"`) |
 | `default_model` | No | Default model for agents using this provider |
 | `default_temperature` | No | Default temperature for agents using this provider.  Omit for providers that don't support it |
+| `token_param` | No | Field name for the output-token cap. Defaults to `max_tokens`.  Set to `max_completion_tokens` for OpenAI - GPT-5.x rejects `max_tokens` outright. |
+| `supports_temperature` | No | Defaults to `true`.  Set to `false` for providers whose models reject or ignore sampling parameters, and UDC01 omits `temperature` for agents that did not set one |
+| `strip_reasoning` | No | OpenAI-format profiles only.  Defaults to `true` - UDC01 removes inline `<think>` blocks and moves a separate `reasoning_content` / `reasoning` field off the message before anything parses it.  Set to `false` to keep raw model output |
+
+`token_param` and `supports_temperature` are profile *defaults*, not fixed properties - a role-group or an individual agent can override either.  See [Resolution order](#resolution-order-first-match-wins).
+
+---
+
+## Custom Endpoints (the `local` profile)
+
+`local` is a name, not a constraint. It's UDC01's bring-your-own-endpoint slot: anything that speaks the OpenAI chat-completions format works through it, whether it runs on your laptop, a GPU box down the hall, or a cloud region. LM Studio and Ollama are the common cases, but nothing in the code assumes localhost - `base_url`, `endpoint`, and `auth_header` are the entire contract.
+
+Provider names are arbitrary keys, so copy the profile and rename it when you're pointing at more than one endpoint.
+
+### Worked examples
+
+| Host | `base_url` | `endpoint` | Auth |
+|------|------------|------------|------|
+| LM Studio | `http://localhost:1234` | `v1/chat/completions` | none |
+| Ollama | `http://localhost:11434` | `v1/chat/completions` | none |
+| vLLM / llama.cpp | `https://gpu.internal:8000` | `v1/chat/completions` | `Authorization` + `Bearer`, if started with a key |
+| LiteLLM proxy | `https://litellm.corp.net` | `v1/chat/completions` | `Authorization` + `Bearer` |
+| Azure OpenAI | `https://<resource>.openai.azure.com` | `openai/deployments/<deployment>/chat/completions?api-version=2024-10-21` | `api-key`, no prefix |
+| Azure AI Foundry | `https://<name>.<region>.models.ai.azure.com` | `v1/chat/completions` | `Authorization` + `Bearer` |
+
+Azure OpenAI is the one that looks unusual: the deployment name sits in the URL path, the API version rides along as a query parameter, and `model` in the payload should be the deployment name as well. UDC01 joins `base_url` and `endpoint` as written, so the query string survives intact.
+
+**AWS Bedrock** is the exception worth calling out. Its native API requires SigV4 request signing and UDC01 sends static headers, so it won't work directly. Put LiteLLM or the Bedrock Access Gateway in front and point `local` at that - the proxy signs, UDC01 keeps talking OpenAI.
+
+### Authenticating a remote endpoint
+
+Once you leave localhost you generally need a key. That's two fields on the profile plus one entry in `api_keys`, which is keyed by provider name:
+
+```json
+"providers": {
+  "local": {
+    "base_url": "https://gpu.internal:8000",
+    "endpoint": "v1/chat/completions",
+    "auth_header": "Authorization",
+    "auth_prefix": "Bearer",
+    "request_format": "openai",
+    "default_max_tokens": 16000,
+    "default_model": "meta-llama/Llama-3.3-70B-Instruct"
+  }
+},
+"api_keys": {
+  "local": "${LOCAL_API_KEY}"
+}
+```
+
+`${VAR}` resolves from the environment when the config loads, so credentials stay out of the file. Set `auth_prefix` to `""` for headers that take a bare key, as Azure's `api-key` does. Leave `auth_header` as `null` and UDC01 sends no credentials at all - which is what you want for LM Studio and Ollama.
+
+Remote endpoints also argue for a longer `api_timeout` than a local one, since you're adding network latency to generation time.
+
+### Model IDs go over the wire verbatim
+
+Model IDs on these hosts carry a namespace: `openai/gpt-oss-20b`, `qwen/qwen3.5-35b-a3b`, `zai-org/glm-4.6v-flash`. Ollama does the same with tags like `hf.co/user/repo:Q4_K_M`. UDC01 sends the string you configure exactly as written, so copy it from the source of truth:
+
+```bash
+lms ls          # LM Studio
+ollama list     # Ollama
+```
+
+Remote hosts make this stricter rather than looser. vLLM wants the full repo id (`meta-llama/Llama-3.3-70B-Instruct`), a LiteLLM proxy wants its routing prefix (`bedrock/anthropic.claude-sonnet-4-20250514-v1:0`), and Azure OpenAI wants the deployment name. All of those are exact-match; only LM Studio is forgiving enough to resolve a trimmed name, and only when one model is loaded.
+
+Google is the sole exception - its URL needs the bare model name in the path, so UDC01 strips the namespace there and only there.
+
+### Reasoning models need headroom
+
+Nearly every current open model reasons before it answers: gpt-oss, Qwen3.5, GLM-4.7, Granite 4.  That reasoning has to go somewhere, and UDC01 keeps it clear of your output at both ends of the call.
+
+**On the way in**, `default_max_tokens` buys room to think *and* answer.  Both shipped profiles set `16000`.  Set it too low and the model spends the whole budget reasoning, gets cut off before writing anything, and returns empty content - which surfaces in the log as `Response was entirely reasoning, no answer returned`.
+
+**On the way out**, UDC01 strips reasoning before any tag parsing happens.  LM Studio returns it in `reasoning_content` and Ollama in `reasoning`; both get moved off the message.  Models that inline it instead have their `<think>`, `<thinking>`, and `<reasoning>` blocks removed, including the prefilled-opener style where only a closing tag arrives.
+
+That second part matters more than it looks, because UDC01 reads verdicts out of model text.  A validator reasoning *"so `<isvalid>False</isvalid>` - no wait, the totals do match"* would otherwise have its rehearsal counted as its vote, quietly corrupting 2/3 consensus.  Verdict parsing takes the **last** `<isvalid>` rather than the first as a second line of defence, so the final answer wins even when reasoning arrives in a wrapper UDC01 doesn't recognise.
+
+Set `"strip_reasoning": false` on the profile when you want to see exactly what the model emitted.
+
+### Parallel agents and one backend
+
+`parallel_agents: true` fires two verification or validation agents at once.  Against a hosted endpoint that roughly halves wall time, because the service handles concurrency.  Against a single loaded local model it doesn't, since the server queues the second request behind the first - and both race the same `api_timeout`.  On one instance, either set `parallel_agents: false` or give `api_timeout` enough room to cover two generations back to back.
 
 ---
 
@@ -161,6 +253,13 @@ You can set any combination of role-level overrides:
 | `default_provider` | Global `default_provider` |
 | `default_model` | Provider profile's `default_model` |
 | `default_temperature` | Provider profile's `default_temperature` |
+| `default_thinking_budget` | Provider profile's `default_thinking_budget` |
+| `default_reasoning_effort` | Provider profile's `default_reasoning_effort` |
+| `default_max_tokens` | Provider profile's `default_max_tokens` |
+| `default_supports_temperature` | Provider profile's `supports_temperature` |
+| `default_token_param` | Provider profile's `token_param` |
+
+> **An agent that names its own profile stops inheriting these.**  Role-group values are scoped to the role's profile, so an agent setting `provider` takes its own profile's defaults instead.  Give that agent whatever it needs directly.
 
 The flat array format (without a wrapper object) also works and simply inherits global defaults:
 
@@ -219,8 +318,11 @@ Temperature is not required at the top level, and that's intentional. Some model
 1. Agent-level "temperature"                          -> use it
 2. Role-group "default_temperature"                   -> use it
 3. Provider profile "default_temperature"             -> use it
-4. None of the above                                  -> field omitted from request
+4. Global "default_temperature"                       -> use it
+5. None of the above                                  -> field omitted from request
 ```
+
+**`supports_temperature` is a default, not a veto.**  Setting it `false` on a provider profile means "models on this profile generally reject temperature", and UDC01 omits the parameter for agents that did not ask for one.  An agent that sets its own `temperature` still gets it.
 
 To enable temperature for a provider, add it to the provider profile:
 
@@ -241,17 +343,25 @@ To set a different temperature for one specific agent:
 
 ## Thinking & Reasoning
 
-Providers support extended thinking or reasoning modes - and each uses a different mechanism. UDC01 handles the differences transparently, so the same three-level hierarchy (provider profile → role-group → individual agent) applies to all of them.
+The vendors appear to have converged on the same idea: reasoning depth is an effort level, not a token count.  Anthropic replaced its token budget with adaptive thinking plus an effort setting, Google replaced `thinkingBudget` with a `thinkingLevel` enum, and OpenAI expanded `reasoning_effort`.  UDC01 goes with that convergence - **`reasoning_effort` is available across each provider**, and the same three-level hierarchy (provider profile → role-group → individual agent) applies.
 
-### Provider support
+`thinking_budget` still works for older models.  The config key you set decides the wire format, so you don't have to manage this per model.
 
-| Provider | Parameter | Values | Effect on temperature |
-|----------|-----------|--------|-----------------------|
-| **Anthropic** | `thinking_budget` | integer ≥ 1024 (tokens) | **Replaced** - forced to 1 by the API when thinking is on |
-| **Google Gemini** | `thinking_budget` | integer, `0` (off), `-1` (dynamic) | **Coexists** - temperature still applies |
-| **OpenAI** | `reasoning_effort` | `"low"`, `"medium"`, `"high"` | **Replaced** |
+### Which key to use
 
-### Setting thinking_budget (Anthropic & Google)
+| You set | Anthropic sends | Google sends | OpenAI / local / Ollama sends |
+|---------|-----------------|--------------|--------------|
+| `reasoning_effort` | `thinking: {type: adaptive}` + `output_config: {effort}` | `thinkingConfig: {thinkingLevel}` | `reasoning_effort` |
+| `thinking_budget` *(legacy)* | `thinking: {type: enabled, budget_tokens}` | `thinkingConfig: {thinkingBudget}` | n/a |
+
+Local servers share the OpenAI wire format, so `reasoning_effort` reaches them too - gpt-oss honours it through both LM Studio and Ollama.  Models that don't recognise the field generally ignore it.  Controlling *whether* a hybrid model thinks at all (Qwen3.5's `enable_thinking`, for one) isn't reachable from config yet.
+
+Set both and `reasoning_effort` wins, with a warning in the log.  UDC01 never sends both on one request.
+
+**Values.** Anthropic takes `low`, `medium`, `high`, `xhigh`, `max`.  Google takes `minimal`, `low`, `medium`, `high`, defaulting to `medium` on Gemini 3.5 Flash.  OpenAI takes `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, varying by model.
+
+
+### Setting thinking_budget (legacy - Anthropic & Google)
 
 **In the provider profile** - applies to all agents using that provider:
 ```json
@@ -279,27 +389,35 @@ Providers support extended thinking or reasoning modes - and each uses a differe
 { "name": "Ted Sagan", "role": "convert", "thinking_budget": 12000 }
 ```
 
-> **Anthropic note:** When `thinking_budget` is set, the API forces `temperature: 1` regardless of any other temperature configuration. UDC01 handles this automatically.
+> **Anthropic note:** On models that still accept `budget_tokens`, the API forces `temperature: 1` whenever thinking is on.  UDC01 handles this automatically.  Current models reject `budget_tokens` entirely - use `reasoning_effort` there.
 >
-> **Anthropic + thinking:** Anthropic requires `max_tokens` to be large enough to accommodate both thinking tokens and output tokens. Set `max_tokens` explicitly at the provider, role-group, or agent level when using `thinking_budget`. See [max_tokens](#max_tokens) below.
+> **Budget covers thinking and output together.** Anthropic counts thinking tokens against `max_tokens`, so the cap has to cover both.  See [max_tokens](#max_tokens) below.
 
-### Setting reasoning_effort (OpenAI o-series)
+### Setting reasoning_effort
 
-**In the provider profile:**
+**In the provider profile** - applies to all agents using that provider:
 ```json
-"openai": {
+"anthropic": {
   ...
-  "default_model": "o3-mini",
   "default_reasoning_effort": "medium"
 }
 ```
 
-**On an individual agent:**
+**In a role-group:**
+```json
+"data_conversion": {
+  "default_provider": "anthropic",
+  "default_reasoning_effort": "high",
+  "agents": { "name": "Ted Sagan", "role": "convert" }
+}
+```
+
+**On an individual agent** - overrides everything above:
 ```json
 { "name": "Ted Sagan", "role": "convert", "provider": "openai", "model": "gpt-5.4-mini", "reasoning_effort": "high" }
 ```
 
-When `reasoning_effort` is set, `temperature` is automatically omitted from the request - these two parameters are mutually exclusive on OpenAI o-series models.
+On OpenAI, setting `reasoning_effort` omits `temperature` automatically - the two are mutually exclusive once reasoning is on.
 
 ### max_tokens
 
@@ -327,8 +445,6 @@ When `reasoning_effort` is set, `temperature` is automatically omitted from the 
 ```json
 { "name": "Ted Sagan", "role": "convert", "max_tokens": 8000 }
 ```
-
-If `max_tokens` is not set at any level, each provider falls back to its own built-in default (`10000` for Anthropic, no limit sent for Google and OpenAI).
 
 ---
 
@@ -462,30 +578,38 @@ Use these tables as a quick lookup when building or debugging configurations.
 
 ### What can be set at each level?
 
-| Setting | Provider Profile | Role-Group | Individual Agent |
-|---------|:---:|:---:|:---:|
-| `default_model` | Yes | Yes | - |
-| `default_temperature` | Yes | Yes | - |
-| `default_thinking_budget` | Yes | Yes | - |
-| `default_reasoning_effort` | Yes | Yes | - |
-| `default_max_tokens` | Yes | Yes | - |
-| `model` | - | - | Yes |
-| `provider` | - | - | Yes |
-| `temperature` | - | - | Yes |
-| `thinking_budget` | - | - | Yes |
-| `reasoning_effort` | - | - | Yes |
-| `max_tokens` | - | - | Yes |
+| Setting | Global | Provider Profile | Role-Group | Individual Agent |
+|---------|:---:|:---:|:---:|:---:|
+| `default_model` | Yes | Yes | Yes | - |
+| `default_temperature` | Yes | Yes | Yes | - |
+| `default_thinking_budget` | Yes | Yes | Yes | - |
+| `default_reasoning_effort` | Yes | Yes | Yes | - |
+| `default_max_tokens` | Yes | Yes | Yes | - |
+| `supports_temperature` | Yes | Yes | Yes (`default_supports_temperature`) | - |
+| `token_param` | Yes | Yes | Yes (`default_token_param`) | - |
+| `model` | - | - | - | Yes |
+| `provider` | - | - | - | Yes |
+| `temperature` | - | - | - | Yes |
+| `thinking_budget` | - | - | - | Yes |
+| `reasoning_effort` | - | - | - | Yes |
+| `max_tokens` | - | - | - | Yes |
+| `supports_temperature` | - | - | - | Yes |
+| `token_param` | - | - | - | Yes |
 
 ### Resolution order (first match wins)
 
 | Setting | Priority order |
 |---------|---------------|
 | Provider | Agent `provider` -> Role-group `default_provider` -> Global `default_provider` |
-| Model | Agent `model` -> Role-group `default_model` -> Provider profile `default_model` |
-| Temperature | Agent `temperature` -> Role-group `default_temperature` -> Provider profile `default_temperature` -> *(omitted)* |
-| Thinking budget | Agent `thinking_budget` -> Role-group `default_thinking_budget` -> Provider profile `default_thinking_budget` -> *(omitted)* |
-| Reasoning effort | Agent `reasoning_effort` -> Role-group `default_reasoning_effort` -> Provider profile `default_reasoning_effort` -> *(omitted)* |
-| Max tokens | Agent `max_tokens` -> Role-group `default_max_tokens` -> Provider profile `default_max_tokens` -> *(provider default)* |
+| Model | Agent `model` -> Role-group `default_model` -> Provider profile `default_model` -> Global `default_model` |
+| Temperature | Agent `temperature` -> Role-group `default_temperature` -> Provider profile `default_temperature` -> Global `default_temperature` -> *(omitted)* |
+| Thinking budget | Agent `thinking_budget` -> Role-group `default_thinking_budget` -> Provider profile `default_thinking_budget` -> Global -> *(omitted)* |
+| Reasoning effort | Agent `reasoning_effort` -> Role-group `default_reasoning_effort` -> Provider profile `default_reasoning_effort` -> Global -> *(omitted)* |
+| Max tokens | Agent `max_tokens` -> Role-group `default_max_tokens` -> Provider profile `default_max_tokens` -> Global -> *(provider default)* |
+| Supports temperature | Agent `supports_temperature` -> Role-group `default_supports_temperature` -> Provider profile `supports_temperature` -> Global -> `true` |
+| Token param | Agent `token_param` -> Role-group `default_token_param` -> Provider profile `token_param` -> Global -> `max_tokens` |
+
+> **Naming a profile detaches from role defaults.** The role-group tier applies only while an agent is on the role's profile. An agent that sets its own `provider` takes that profile's values for everything it does not set itself - role-group settings no longer reach it. That keeps a role's model choice from following an agent to a vendor where the model name doesn't exist.
 
 ### Thinking & temperature interaction
 
